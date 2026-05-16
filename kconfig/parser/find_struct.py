@@ -4,14 +4,14 @@ from pathlib import Path
 
 from kconfig.utils.exceptions import KconfigQueryError
 
-from .run_query import run_query
+from .run_query import run_file_query
 
 
-def find_struct(c_file: Path, struct_name: str) -> str:
+def find_struct(file: Path, struct_name: str) -> str:
     """Run a tree-sitter query on a C file.
 
     Args:
-        c_file (Path): Path to the C file to query.
+        file (Path): Path to the C file to query.
         query_file (Path): Path to the query (.scm) file.
 
     Raises:
@@ -28,7 +28,7 @@ def find_struct(c_file: Path, struct_name: str) -> str:
     query_text = query_file.read_text()
     query_str = query_text.replace("__STRUCT_NAME__", struct_name)
 
-    result = run_query(c_file, query_str)
+    result = run_file_query(file, query_str)
     if "struct.def" not in result:
         raise KconfigQueryError(f"Failed to find structure: {struct_name}")
     len_results = len(result["struct.def"])

@@ -36,3 +36,11 @@ force-wrap-aliases = true
 known-first-party = []
 lines-after-imports = 2
 required-imports = ["from __future__ import annotations"]
+
+[dependency-groups]
+dev = [
+    "codespell>=2.4.2",
+    "mypy>=2.1.0",
+    "pylint>=4.0.5",
+    "ruff>=0.15.13",
+]
