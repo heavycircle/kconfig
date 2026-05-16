@@ -1,26 +1,31 @@
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import tree_sitter
 import tree_sitter_c
 
 
-def run_query(c_file: Path, query_file: Path) -> None:
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def run_query(c_file: Path, query: str) -> dict[str, list[tree_sitter.Node]]:
     """Run a tree-sitter query on a C file.
 
     Args:
         c_file (Path): Path to the C file to query.
-        query_file (Path): Path to the query (.scm) file.
+        query_str (str): Tree-sitter (SCM) query..
+
+    Returns:
+        dict[str, list[Node]]: Resulting structure of the query.
 
     Raises:
         ValueError: Missing c_file or missing query_file.
 
-    Returns:
-        dict: Dictionary of matching queries.
     """
     if not c_file.exists():
         raise ValueError(f"No such file or directory: {c_file.name}")
-    if not query_file.exists():
-        raise ValueError(f"No such file or directory: {query_file.name}")
 
     c_lang = tree_sitter.Language(tree_sitter_c.language())
     parser = tree_sitter.Parser(c_lang)
@@ -29,19 +34,7 @@ def run_query(c_file: Path, query_file: Path) -> None:
     file_bytes = c_file.read_bytes()
     tree = parser.parse(file_bytes)
 
-    query_str = query_file.read_text()
-    query = tree_sitter.Query(c_lang, query_str)
-
-    cursor = tree_sitter.QueryCursor(query)
-    captures = cursor.captures(tree.root_node)
-    for name, nodes in captures.items():
-        for node in nodes:
-            text = node.text.decode("utf-8").strip()
-
-            start = node.start_point[0] + 1
-            end = node.end_point[0] + 1
-
-            print(f"[{start}:{end}] {name}:")
-            print(text, end="\n\n")
-
-    return
+    # Query AST
+    query_obj = tree_sitter.Query(c_lang, query)
+    cursor = tree_sitter.QueryCursor(query_obj)
+    return cursor.captures(tree.root_node)

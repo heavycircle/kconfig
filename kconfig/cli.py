@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 
-from .parser import run_query
+from .parser import find_struct
 
 
 def main() -> None:
     c_file = Path("linux-3.2.63/include/linux/sched.h").resolve()
-    query_file = Path("./kconfig/queries/ifdef-struct.scm").resolve()
-    run_query(c_file, query_file)
+    struct = find_struct(c_file, "sched_rt_entity")
+    print(struct)
