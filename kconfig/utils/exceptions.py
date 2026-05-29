@@ -6,7 +6,20 @@ class KconfigError(Exception):
 
 
 class KconfigQueryError(KconfigError):
-    """Errors where query results do not return expected results.
+    """Base class for Query errors."""
 
-    This may be a problem with the query or the code beign queried.
-    """
+
+class KconfigFileError(KconfigError):
+    """Errors relating to the file system."""
+
+
+class KconfigQueryInvalidError(KconfigQueryError):
+    """Errors relating to invalid structured queries."""
+
+
+class KconfigQueryNoMatchError(KconfigQueryError):
+    """Errors relating to valid queries finding no matches."""
+
+
+class KconfigQueryImpossibleError(KconfigQueryError):
+    """Errors relating to impossible edge cases for queries."""
