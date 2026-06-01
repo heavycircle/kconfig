@@ -3,12 +3,14 @@ from __future__ import annotations
 from .exceptions import (
     KconfigError,
     KconfigFileError,
+    KconfigFileNoMatchError,
     KconfigQueryError,
     KconfigQueryImpossibleError,
     KconfigQueryInvalidError,
     KconfigQueryNoMatchError,
 )
-from .types import KconfigQueryResult, KconfigStruct, KconfigStructConfig
+from .logging import ui
+from .types import KconfigQueryResult, KconfigSignature, KconfigStruct, KconfigStructConfig
 
 
 __all__ = [
@@ -19,6 +21,8 @@ __all__ = [
     "KconfigQueryInvalidError",
     "KconfigQueryNoMatchError",
     "KconfigQueryResult",
+    "KconfigSignature",
     "KconfigStruct",
-    "KconfigStructConfig"
+    "KconfigStructConfig",
+    "ui"
 ]

@@ -16,15 +16,12 @@ def get_nodes(result: KconfigQueryResult, name: str) -> list[Node]:
         result (KconfigQueryResult): Query results to parse.
         name (str): Name of the item to get.
 
-    Raises:
-        KconfigQueryNoMatchError: Cannot find structure inside file.
-
     Returns:
         list[Node]: List of nodes found.
 
     """
     if name not in result:
-        raise KconfigQueryNoMatchError(f"Failed to query: {name}")
+        return []
     return result[name]
 
 

@@ -5,12 +5,15 @@ class KconfigError(Exception):
     """Base exception class."""
 
 
-class KconfigQueryError(KconfigError):
-    """Base class for Query errors."""
-
-
 class KconfigFileError(KconfigError):
     """Errors relating to the file system."""
+
+class KconfigFileNoMatchError(KconfigFileError):
+    """Errors where a matching file cannot be found."""
+
+
+class KconfigQueryError(KconfigError):
+    """Base class for Query errors."""
 
 
 class KconfigQueryInvalidError(KconfigQueryError):

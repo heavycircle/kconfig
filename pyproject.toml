@@ -8,7 +8,12 @@ version = "0.1.0"
 description = "Reverse kernel .config files."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["tree-sitter>=0.25.2", "tree-sitter-c>=0.24.2"]
+dependencies = [
+    "pyelftools>=0.33",
+    "tree-sitter>=0.25.2",
+    "tree-sitter-c>=0.24.2",
+    "typer>=0.26.5",
+]
 
 [project.scripts]
 kconfig = "kconfig.cli:main"
