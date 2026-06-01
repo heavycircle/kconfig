@@ -16,6 +16,7 @@ from .types import KconfigQueryResult, KconfigSignature, KconfigStruct, KconfigS
 __all__ = [
     "KconfigError",
     "KconfigFileError",
+    "KconfigFileNoMatchError",
     "KconfigQueryError",
     "KconfigQueryImpossibleError",
     "KconfigQueryInvalidError",
@@ -24,5 +25,5 @@ __all__ = [
     "KconfigSignature",
     "KconfigStruct",
     "KconfigStructConfig",
-    "ui"
+    "ui",
 ]

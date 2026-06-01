@@ -5,6 +5,7 @@ from kconfig.utils import KconfigFileNoMatchError, KconfigQueryImpossibleError, 
 
 from .utils import find_candidate_files
 
+
 def get_function_signature(kernel_root: str, symbol_name: str) -> tuple[str, bool]:
     """Get a function's signature.
 

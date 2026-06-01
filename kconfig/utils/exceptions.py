@@ -8,6 +8,7 @@ class KconfigError(Exception):
 class KconfigFileError(KconfigError):
     """Errors relating to the file system."""
 
+
 class KconfigFileNoMatchError(KconfigFileError):
     """Errors where a matching file cannot be found."""
 

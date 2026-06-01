@@ -5,6 +5,7 @@ from pathlib import Path
 from .parser import find_struct, find_struct_configs
 from .utils import KconfigError
 
+
 def action(file: str, name: str) -> None:
     """Do the action."""
     c_file = Path(f"linux-3.2.63/include/{file}").resolve()

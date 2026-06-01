@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryNoMatchError, KconfigQueryResult
+from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryResult
 
 
 if TYPE_CHECKING:

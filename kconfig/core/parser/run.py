@@ -12,6 +12,7 @@ from kconfig.utils import KconfigFileError, KconfigQueryInvalidError, ui
 if TYPE_CHECKING:
     from kconfig.utils import KconfigQueryResult
 
+
 def _normalize_query_name(name: str) -> str:
     path = Path(name)
     if path.suffix == ".scm":
