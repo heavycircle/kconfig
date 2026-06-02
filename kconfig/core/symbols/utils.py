@@ -25,5 +25,5 @@ def find_candidate_files(root: str, symbol_name: str) -> Generator[Path]:
         try:
             if symbol_bytes in path.read_bytes():
                 yield path
-        except (PermissionError, FileNotFoundError):
+        except (PermissionError, FileNotFoundError):  # noqa: PERF203
             continue

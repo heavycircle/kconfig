@@ -29,57 +29,80 @@ class UserInterface:
 
         Args:
             enabled (bool): True if debug mode is enabled.
-
         """
         self.debug_mode = enabled
         if enabled:
             self.out_debug("Debug mode enabled!")
 
-    def out_debug(self, msg: Any) -> None:
+    def _print_message(self, tag: str, symbol: str, args: tuple[Any, ...], sep: str) -> None:
+        """Helper method to format and print messages.
+
+        Args:
+            tag (str): The rich theme tag to use (e.g., "info", "error").
+            symbol (str): The symbol to display in brackets (e.g., "*", "!").
+            args (tuple[Any, ...]): The arguments to print.
+            sep (str): The separator string.
+
+        """
+        if tag == "debug" and not self.debug_mode:
+            return
+
+        msg = sep.join(str(arg) for arg in args)
+
+        if tag == "debug":
+            self.console.print(f"[{tag}][{symbol}] {msg}[/{tag}]")
+        else:
+            self.console.print(f"[{tag}][{symbol}][/{tag}] {msg}")
+
+    def out_debug(self, *args: Any, sep: str = " ") -> None:
         """Print a debug message.
 
         Args:
-            msg (Any): String to print to console.
+            *args (Any): The arguments to print.
+            sep (str): Separator string.
 
         """
-        if self.debug_mode:
-            self.console.print(f"[debug][ ] {msg}[/debug]")
+        self._print_message("debug", " ", args, sep)
 
-    def out_info(self, msg: Any) -> None:
+    def out_info(self, *args: Any, sep: str = " ") -> None:
         """Print an info message with a cyan [*] prefix.
 
         Args:
-            msg (Any): String to print to console.
+            *args (Any): The arguments to print.
+            sep (str): Separator string.
 
         """
-        self.console.print(f"[info][*][/info] {msg}")
+        self._print_message("info", "*", args, sep)
 
-    def out_success(self, msg: Any) -> None:
+    def out_success(self, *args: Any, sep: str = " ") -> None:
         """Print a success message with a green [+] prefix.
 
         Args:
-            msg (Any): String to print to console.
+            *args (Any): The arguments to print.
+            sep (str): Separator string.
 
         """
-        self.console.print(f"[success][+][/success] {msg}")
+        self._print_message("success", "+", args, sep)
 
-    def out_warning(self, msg: Any) -> None:
+    def out_warning(self, *args: Any, sep: str = " ") -> None:
         """Print a warning message with a yellow [*] prefix.
 
         Args:
-            msg (Any): String to print to console.
+            *args (Any): The arguments to print.
+            sep (str): Separator string.
 
         """
-        self.console.print(f"[warning][*][/warning] {msg}")
+        self._print_message("warning", "*", args, sep)
 
-    def out_error(self, msg: Any) -> None:
+    def out_error(self, *args: Any, sep: str = " ") -> None:
         """Print an error message with a red [!] prefix.
 
         Args:
-            msg (Any): String to print to console.
+            *args (Any): The arguments to print.
+            sep (str): Separator string.
 
         """
-        self.console.print(f"[error][!][/error] {msg}")
+        self._print_message("error", "!", args, sep)
 
     @property
     def raw(self) -> Console:

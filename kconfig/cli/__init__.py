@@ -35,7 +35,7 @@ def main() -> None:
         ui.out_error(e)
         sys.exit(1)
 
-    except Exception as e:  # disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         if ui.debug_mode:
             raise
 
