@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from kconfig.core import structs
+from kconfig.core import structs, utils
 from kconfig.utils import ui
 
 
@@ -20,4 +20,4 @@ def symbol_find(symbol_name: str) -> None:
     ui.out_info(f"Kernel: {signature}")
 
     module = structs.get_module_struct(Path("dolos.ko"), symbol_name)
-    ui.out_info(f"Module: {module}")
+    utils.print_struct_comparison(compare)
