@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 
 from kconfig.utils import KconfigFileInvalidError, KconfigStruct
 
-from .utils import get_struct_configs
-
 
 if TYPE_CHECKING:
     from pathlib import Path

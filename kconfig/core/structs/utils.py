@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigQueryImpossibleError, KconfigStruct, KconfigStructConfig
+from kconfig.utils import (
+    KconfigAnalysisInvalidError,
+    KconfigQueryImpossibleError,
+    KconfigStruct,
+    KconfigStructComparison,
+    KconfigStructConfig,
+    ui,
+)
 
 
 def get_struct_configs(struct: KconfigStruct) -> KconfigStruct:
@@ -19,15 +26,15 @@ def get_struct_configs(struct: KconfigStruct) -> KconfigStruct:
     for _, captures in matches:
         # Ensure we have a valid capture.
         names = utils.get_capture_text(captures, "config.name")
-        blocks = utils.get_capture_nodes(capturs, "config.block")
+        blocks = utils.get_capture_nodes(captures, "config.block")
         if not (names and blocks):
             continue
 
         # Add type dictionaries for the config.
         config = KconfigStructConfig(name=names[0].decode())
-        for child in block.children:
+        for child in blocks[0].children:
             if child.type == "field_declaration":
-                config.fields.update(utils.parse_declaration_field(child))
+                config.fields.update(utils.parse_field_declaration(child))
 
         struct.configs.append(config)
 
@@ -56,7 +63,7 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
     query = parser.get_query("struct-find").replace("__STRUCT_NAME__", module_struct.name)
     module_fields: dict[str, str] = {}
     for _, captures in parser.run_query(module_struct.body, query):
-        nodes = utils.get_capture_nodes(capturs, "struct.body")
+        nodes = utils.get_capture_nodes(captures, "struct.body")
         if len(nodes) != 1:
             raise KconfigQueryImpossibleError(f"More than one structure found: {module_struct.name}")
 
@@ -66,9 +73,9 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
 
     # Compare the kernel_struct to this fields list
     result = KconfigStructComparison(name=kernel_struct.name)
-    ui.out_info(f"Checking {len(kenel_struct.configs)} config guards ...")
+    ui.out_info(f"Checking {len(kernel_struct.configs)} config guards ...")
     for config in kernel_struct.configs:
-        ui.out_debug(f"Checking configs: '{config.name}'")
+        ui.out_debug(f" >> Checking configs: '{config.name}'")
 
         config_enabled = True
         for field_name, field_type in config.fields.items():
@@ -85,12 +92,13 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
             module_type = utils.normalize_type(module_fields.get(field_name, ""))
             if kernel_type != module_type:
                 ui.out_debug(f" >> >> >> Type mismatch: '{kernel_type}' vs '{module_type}'")
-                result.type_mismatch.add(config.name)
+                result.type_mismatches.add(config.name)
 
         if config_enabled:
-            ui.out_info(f"{config.name}: Enabled!")
+            ui.out_debug(f" >> {config.name}: Enabled!")
             result.enabled_configs.add(config.name)
         else:
+            ui.out_debug(f" >> {config.name}: Disabled!")
             result.disabled_configs.add(config.name)
 
     return result

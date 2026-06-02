@@ -8,14 +8,23 @@ if TYPE_CHECKING:
 
 
 def parse_field_declaration(node: Node) -> dict[str, str]:
+    """Parse a field_declaration and return a field dictionary.
+
+    Args:
+        node (Node): Base node of the field declaration.
+
+    Returns:
+        dict[str, str]: Dictionary of {name: type} objects.
+
+    """
     result: dict[str, str] = {}
 
-    type_node = field_node.child_by_field_name("type")
+    type_node = node.child_by_field_name("type")
     if not type_node or not type_node.text:
         return result
-        
+
     base_type = type_node.text.decode("utf-8").strip()
-    for child in field_node.children:
+    for child in node.children:
         if child == type_node or not child.is_named:
             continue
 
@@ -30,11 +39,11 @@ def parse_field_declaration(node: Node) -> dict[str, str]:
                 name = current.text.decode("utf-8")
                 break
             nodes_to_check.extend(current.children)
-            
+
         if not name:
             continue
 
-        # Construct the full C type 
+        # Construct the full C type
         modifiers = decl_text.replace(name, "").strip()
         full_type = f"{base_type} {modifiers}".strip()
         full_type = full_type.replace("*", " *").replace("  ", " ").strip()
@@ -44,15 +53,23 @@ def parse_field_declaration(node: Node) -> dict[str, str]:
 
 
 def parse_field_declaration_list(node: Node) -> dict[str, str]:
-    """Parse a field_declaration_list and return a field dictionary."""
+    """Parse a field_declaration_list and return a field dictionary.
+
+    Args:
+        node (Node): Base node of the field declaration list.
+
+    Returns:
+        dict[str, str]: Dictionary of {name: type} objects.
+
+    """
     layout: dict[str, str] = {}
 
-    if body_node.type != "field_declaration_list":
-        raise ValueError(f"Expected field_declaration_list, got {body_node.type}")
-        
-    for child in body_node.children:
+    if node.type != "field_declaration_list":
+        raise ValueError(f"Expected field_declaration_list, got {node.type}")
+
+    for child in node.children:
         if child.type == "field_declaration":
             fields_dict = parse_field_declaration(child)
             layout.update(fields_dict)
-            
+
     return layout

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryResult
+from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryNoMatchError
 
 
 if TYPE_CHECKING:
@@ -15,10 +15,12 @@ def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:
     """Get all nodes matching a query string.
 
     Args:
-        result (KconfigQueryCapture): Capture from a KconfigQueryResult.
+        captures (KconfigQueryCapture): Capture from a KconfigQueryResult.
         key (str): Key to find.
 
-    TODO: Raises
+    Raises:
+        KconfigQueryNoMatchError: Key not found.
+        KconfigQueryImpossibleError: Missing text from query.
 
     Returns:
         list[Node]: List of nodes found.
@@ -37,7 +39,7 @@ def get_capture_text(captures: KconfigQueryCapture, key: str) -> list[bytes]:
     """Get all text from a capture.
 
     Args:
-        result (KconfigQueryCapture): Capture from a KconfigQueryResult.
+        captures (KconfigQueryCapture): Capture from a KconfigQueryResult.
         key (str): Key to find.
 
     Returns:
@@ -52,7 +54,7 @@ def get_node_text(node: Node | None) -> bytes:
 
     Args:
         node (Node | None): Node to parse.
-    
+
     Raises:
         KconfigQueryImpossibleError: Missing contents of the structure.
 

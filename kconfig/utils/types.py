@@ -64,10 +64,10 @@ class KconfigStructComparison:
 
     enabled_configs: set[str] = field(default_factory=set)
     disabled_configs: set[str] = field(default_factory=set)
-    order_mismatch: set[str] = field(default_factory=set)
-    type_mismatch: set[str] = field(default_factory=set)
+    order_mismatches: set[str] = field(default_factory=set)
+    type_mismatches: set[str] = field(default_factory=set)
 
     @property
     def is_match(self) -> bool:
         """True if two structures match with no errors."""
-        return not self.order_mismatch and not self.type_mismatch
+        return not self.order_mismatches and not self.type_mismatches
