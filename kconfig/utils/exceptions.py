@@ -9,6 +9,10 @@ class KconfigFileError(KconfigError):
     """Errors relating to the file system."""
 
 
+class KconfigFileInvalidError(KconfigFileError):
+    """Errors pertaining to invalid files."""
+
+
 class KconfigFileNoMatchError(KconfigFileError):
     """Errors where a matching file cannot be found."""
 

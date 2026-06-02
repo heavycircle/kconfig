@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 
 def _normalize_query_name(name: str) -> str:
+    """Normalize the name of query files to ensure an .scm suffix."""
     path = Path(name)
     if path.suffix == ".scm":
         return name

@@ -45,7 +45,7 @@ def get_single_node(result: KconfigQueryResult, name: str) -> Node:
     return nodes[0]
 
 
-def get_single_node_text(result: KconfigQueryResult, name: str) -> str:
+def get_single_node_text(result: KconfigQueryResult, name: str) -> bytes:
     """Get the value of a single node from a query result.
 
     Args:
@@ -56,13 +56,13 @@ def get_single_node_text(result: KconfigQueryResult, name: str) -> str:
         KconfigQueryImpossibleError: Missing contents of the structure.
 
     Returns:
-        str: Retrieved item text.
+        bytes: Retrieved item text.
 
     """
     node = get_single_node(result, name)
     if not node.text:
         raise KconfigQueryImpossibleError(f"Impossible: Missing contents: {name}")
-    return node.text.decode("utf-8").strip()
+    return node.text.strip()
 
 
 def normalize_field(field: str) -> str:

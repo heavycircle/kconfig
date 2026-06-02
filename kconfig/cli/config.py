@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
-from kconfig.core import symbols
+from kconfig.core import structs
 from kconfig.utils import ui
 
 
@@ -14,5 +16,5 @@ def symbol_find(symbol_name: str) -> None:
     """Find a symbol inside the kernel."""
     ui.out_info(f"Finding symbol: {symbol_name}")
 
-    signature = symbols.get_symbol("linux-3.2.63", symbol_name)
+    signature = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name)
     ui.out_info(f"Signature: {signature}")
