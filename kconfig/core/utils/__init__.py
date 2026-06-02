@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 from .fs import find_candidate_header_files, find_candidate_source_files
-from .nodes import get_nodes, get_single_node, get_single_node_text, normalize_field
+from .nodes import get_capture_nodes, get_capture_text, get_node_text
+from .normal import normalize_field, normalize_struct, normalize_type, sanitize_kenel_macros
+from .tables import print_struct_comparison
+from .treesitter import parse_field_declaration, parse_field_declaration_list
 
 
 __all__ = [
     "find_candidate_header_files",
     "find_candidate_source_files",
-    "get_nodes",
-    "get_single_node",
-    "get_single_node_text",
+    "get_capture_nodes",
+    "get_capture_text",
+    "get_node_text",
     "normalize_field",
+    "normalize_struct",
+    "normalize_type",
+    "parse_field_declaration",
+    "parse_field_declaration_list",
+    "print_struct_comparison",
+    "sanitize_kernel_macros",
 ]
