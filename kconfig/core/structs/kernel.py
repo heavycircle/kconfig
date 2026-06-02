@@ -29,16 +29,18 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
     query = parser.get_query("struct-find").replace("__STRUCT_NAME__", struct_name)
     for file in utils.find_candidate_header_files(kernel_root, struct_name):
         contents = file.read_bytes()
-        result = parser.run_query(contents, query)
-        if not result:
-            continue
+        for _, captures in parser.run_query(contents, query):
+            struct_names = utils.get_capture_text(captures, "struct.name")
+            struct_defs = utils.get_capture_text(captures, "struct.def")
+            if not (struct_names and struct_defs):
+                continue
 
-        ui.out_debug(f"Found struct {struct_name} in {file} ...")
-        return KconfigStruct(
-            name=utils.get_single_node_text(result, "struct.name").decode(),
-            body=utils.get_single_node_text(result, "struct.def"),
-            file=file,
-        )
+            ui.out_debug(f"Found struct {struct_name} in {file} ...")
+            return KconfigStruct(
+                name=struct_names[0].decode(),
+                body=struct_defs[0],
+                file=file,
+            )
 
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {struct_name}")
 
