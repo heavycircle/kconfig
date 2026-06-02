@@ -11,7 +11,14 @@ from .exceptions import (
     KconfigQueryNoMatchError,
 )
 from .logging import ui
-from .types import KconfigQueryResult, KconfigSignature, KconfigStruct, KconfigStructConfig
+from .types import (
+    KconfigQueryCapture,
+    KconfigQueryResult,
+    KconfigSignature,
+    KconfigStruct,
+    KconfigStructComparison,
+    KconfigStructConfig
+)
 
 
 __all__ = [
@@ -19,6 +26,7 @@ __all__ = [
     "KconfigFileError",
     "KconfigFileInvalidError",
     "KconfigFileNoMatchError",
+    "KConfigQueryCapture",
     "KconfigQueryError",
     "KconfigQueryImpossibleError",
     "KconfigQueryInvalidError",
@@ -26,6 +34,7 @@ __all__ = [
     "KconfigQueryResult",
     "KconfigSignature",
     "KconfigStruct",
+    "KconfigStructComparison",
     "KconfigStructConfig",
     "ui",
 ]
