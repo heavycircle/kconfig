@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def get_module_struct_code(ko_path: Path, struct_name: str) -> KconfigStruct:
+def get_module_struct(ko_path: Path, struct_name: str) -> KconfigStruct:
     """Get a struct's source from a kernel module.
 
     Args:
@@ -30,18 +30,3 @@ def get_module_struct_code(ko_path: Path, struct_name: str) -> KconfigStruct:
         raise KconfigFileInvalidError(f"Failed to find struct: {ko_path}")
 
     return KconfigStruct(name=struct_name, body=result.stdout, file=ko_path)
-
-
-def get_module_struct(ko_path: Path, struct_name: str) -> KconfigStruct:
-    """Get a structure's configuration from a kernel module.
-
-    Args:
-        ko_path (Path): The kernel module to use.
-        struct_name (str): Name of the structure to find.
-
-    Returns:
-        KconfigStruct: Structure information, to include configuration options.
-
-    """
-    struct = get_module_struct_code(ko_path, struct_name)
-    return get_struct_configs(struct)
