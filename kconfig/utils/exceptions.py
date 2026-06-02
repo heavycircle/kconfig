@@ -31,3 +31,11 @@ class KconfigQueryNoMatchError(KconfigQueryError):
 
 class KconfigQueryImpossibleError(KconfigQueryError):
     """Errors relating to impossible edge cases for queries."""
+
+
+class KconfigAnalysisError(KconfigError):
+    """Base class for Analysis errors."""
+
+
+class KconfigAnalysisInvalidError(KconfigAnalysisError):
+    """Errors relating to invalid analysis issues."""

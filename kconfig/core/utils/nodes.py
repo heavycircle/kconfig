@@ -1,56 +1,59 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryResult
+from kconfig.utils import KconfigQueryImpossibleError, KconfigQueryNoMatchError
 
 
 if TYPE_CHECKING:
     from tree_sitter import Node
 
+    from kconfig.utils import KconfigQueryCapture
 
-def get_nodes(result: KconfigQueryResult, name: str) -> list[Node]:
+
+def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:
     """Get all nodes matching a query string.
 
     Args:
-        result (KconfigQueryResult): Query results to parse.
-        name (str): Name of the item to get.
+        captures (KconfigQueryCapture): Capture from a KconfigQueryResult.
+        key (str): Key to find.
+
+    Raises:
+        KconfigQueryNoMatchError: Key not found.
+        KconfigQueryImpossibleError: Missing text from query.
 
     Returns:
         list[Node]: List of nodes found.
 
     """
-    if name not in result:
-        return []
-    return result[name]
+    nodes = captures.get(key)
+    if not nodes:
+        raise KconfigQueryNoMatchError(f"Key not found: {key}")
+    if not all(n.text for n in nodes):
+        raise KconfigQueryImpossibleError(f"Missing text in node {getattr(nodes, 'type', 'Unknown')}")
+
+    return nodes
 
 
-def get_single_node(result: KconfigQueryResult, name: str) -> Node:
-    """Get a single node from a query result.
+def get_capture_text(captures: KconfigQueryCapture, key: str) -> list[bytes]:
+    """Get all text from a capture.
 
     Args:
-        result (KconfigQueryResult): Query results to parse.
-        name (str): Name of the item to get.
-
-    Raises:
-        KconfigQueryImpossibleError: Not exactly one structure (0 or 2+).
+        captures (KconfigQueryCapture): Capture from a KconfigQueryResult.
+        key (str): Key to find.
 
     Returns:
-        Node: Retrieved node from result.
+        list[bytes]: Retrieved node from result.
 
     """
-    nodes = get_nodes(result, name)
-    if len(nodes) != 1:
-        raise KconfigQueryImpossibleError(f"Impossible: Found {len(nodes)} results: {name}")
-    return nodes[0]
+    return [cast("bytes", n.text) for n in get_capture_nodes(captures, key)]
 
 
-def get_single_node_text(result: KconfigQueryResult, name: str) -> bytes:
-    """Get the value of a single node from a query result.
+def get_node_text(node: Node | None) -> bytes:
+    """Get the value of a single node.
 
     Args:
-        result (KconfigQueryResult): Query results to parse.
-        name (str): Name of the item to get.
+        node (Node | None): Node to parse.
 
     Raises:
         KconfigQueryImpossibleError: Missing contents of the structure.
@@ -59,20 +62,6 @@ def get_single_node_text(result: KconfigQueryResult, name: str) -> bytes:
         bytes: Retrieved item text.
 
     """
-    node = get_single_node(result, name)
-    if not node.text:
-        raise KconfigQueryImpossibleError(f"Impossible: Missing contents: {name}")
-    return node.text.strip()
-
-
-def normalize_field(field: str) -> str:
-    """Normalize a field's whitespace.
-
-    Args:
-        field (str): Field to normalize.
-
-    Returns:
-        str: Normalized field.
-
-    """
-    return " ".join(field.split())
+    if node is None or not node.text:
+        raise KconfigQueryImpossibleError(f"Missing text from {getattr(node, 'type', 'Unknown')}")
+    return node.text

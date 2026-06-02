@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from kconfig.core import structs
+from kconfig.core import structs, utils
 from kconfig.utils import ui
 
 
@@ -12,12 +12,21 @@ app = typer.Typer()
 
 
 @app.command("find")
-def symbol_find(symbol_name: str) -> None:
+def struct_find(symbol_name: str) -> None:
     """Find a symbol inside the kernel."""
     ui.out_info(f"Finding symbol: {symbol_name}")
 
-    signature = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name)
-    ui.out_info(f"Kernel: {signature}")
+    kernel = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name)
+    ui.out_info(kernel)
 
+
+@app.command("compare")
+def struct_compare(symbol_name: str) -> None:
+    """Find a symbol inside the kernel."""
+    ui.out_info(f"Finding symbol: {symbol_name}")
+
+    kernel = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name)
     module = structs.get_module_struct(Path("dolos.ko"), symbol_name)
-    ui.out_info(f"Module: {module}")
+
+    compare = structs.compare_structure(kernel, module)
+    utils.print_struct_comparison(compare)
