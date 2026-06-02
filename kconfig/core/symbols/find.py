@@ -27,36 +27,32 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
     query = parser.get_query("signature-find").replace("__SYMBOL_NAME__", symbol_name)
     for file in utils.find_candidate_source_files(kernel_root, symbol_name):
         contents = file.read_bytes()
-        result = parser.run_query(contents, query)
-        if not result:
-            continue
+        for _, captures in parser.run_query(contents, query):
+            is_macro = False
+            signatur = b""
 
-        is_macro = False
-
-        if "func.def" in result:
-            node = utils.get_single_node(result, "func.def")
-            if not node.text:
-                raise KconfigQueryImpossibleError(f"Impossible: Missing node body: {symbol_name}")
-
-            body = node.child_by_field_name("body")
-            if body:
-                signature = contents[node.start_byte : body.start_byte].decode("utf-8").strip()
+            if "func.def" in matches:
+                node = captures["func.def"][0]
+                body = node.child_by_field_name("body")
+                if body:
+                    signature = contents[node.start_byte : body.start_byte]
+                else:
+                    signature = utils.get_node_text(node)
+    
+            elif "macro.func.def" in result:
+                signature = utils.get_capture_text(captures, "macro.func.def")[0]
+                is_macro = True
+    
+            elif "macro.obj.def" in result:
+                signature = utils.get_capture_text(captures, "macro.obj.def")[0]
+                is_macro = True
+    
             else:
-                signature = node.text.decode("utf-8").strip()
-
-        elif "macro.func.def" in result:
-            signature = utils.get_single_node_text(result, "macro.func.def").decode()
-            is_macro = True
-
-        elif "macro.obj.def" in result:
-            signature = utils.get_single_node_text(result, "macro.obj.def").decode()
-            is_macro = True
-
-        else:
-            continue
+                continue
 
         ui.out_debug(f"Found {'macro' if is_macro else 'function'} {symbol_name} in {file} ...")
-        return KconfigSignature(name=symbol_name, signature=signature, is_macro=is_macro, file=file)
+        return KconfigSignature(name=symbol_name, signature=signature.decode().strip(), is_macro=is_macro, file=file)
+        
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {symbol_name}")
 
 
@@ -72,16 +68,15 @@ def get_symbol(kernel_root: Path, symbol_name: str) -> KconfigSignature:
 
     """
     signature = get_function_signature(kernel_root, symbol_name)
-
     snippet = f"{signature.signature} {{}}".encode()
-    result = parser.run_query(snippet, parser.get_query("signature-match"))
-
-    structs = set(utils.get_nodes(result, "struct.name"))
-    signature.structs = [s.text.decode() for s in structs if s.text]
-    unions = set(utils.get_nodes(result, "union.name"))
-    signature.unions = [s.text.decode() for s in unions if s.text]
-    typedefs = set(utils.get_nodes(result, "typedef.name"))
-    typedefs = typedefs - structs - unions
-    signature.typedefs = [s.text.decode() for s in typedefs if s.text]
-
+    
+    structs, unions, typedefs = set[bytes](), set[bytes](), set[bytes]()
+    for _, captures in parser.run_query(snippet, parser.get_query("signature-match")):
+        structs.update(utils.get_node_text(n) for n in captures.get("struct.name", []))
+        unions.update(utils.get_node_text(n) for n in captures.get("union.name", []))
+        typedefs.update(utils.get_node_text(n) for n in captures.get("typedef.name", []))
+    
+    signature.structs = [s.decode() for s in structs]
+    signature.unions = [u.decode() for u in unions]
+    signature.typedefs = [t.decode() for t in typedefs - structs - unions]
     return signature
