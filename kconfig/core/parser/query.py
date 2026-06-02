@@ -77,7 +77,7 @@ def run_query(code: bytes, query: str) -> KconfigQueryResult:
         tree = parser.parse(code)
         query_obj = tree_sitter.Query(c_lang, query)
         cursor = tree_sitter.QueryCursor(query_obj)
-        return cursor.captures(tree.root_node)
+        return cursor.matches(tree.root_node)
     except tree_sitter.QueryError as e:
         raise KconfigQueryInvalidError(f"Invalid Query: {e}") from e
 
