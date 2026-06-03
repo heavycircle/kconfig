@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from kconfig.core import parser
+from kconfig.utils import KconfigQueryImpossibleError
+
+from .nodes import get_capture_nodes
+
 
 if TYPE_CHECKING:
     from tree_sitter import Node
+
+    from kconfig.utils import KconfigStruct
 
 
 def parse_field_declaration(node: Node) -> dict[str, str]:
@@ -73,3 +80,20 @@ def parse_field_declaration_list(node: Node) -> dict[str, str]:
             layout.update(fields_dict)
 
     return layout
+
+
+def get_struct_members(struct: KconfigStruct) -> dict[str, str]:
+    """Get the members of a structure."""
+    query = parser.get_query("struct-find").replace("__STRUCT_NAME__", struct.name)
+
+    module_fields: dict[str, str] = {}
+    for _, captures in parser.run_query(struct.body, query):
+        nodes = get_capture_nodes(captures, "struct.body")
+        if len(nodes) != 1:
+            raise KconfigQueryImpossibleError(f"More than one structure found: {struct.name}")
+
+        module_fields = parse_field_declaration_list(nodes[0])
+
+    if not module_fields:
+        raise KconfigQueryImpossibleError(f"No members found in {struct.name}")
+    return module_fields

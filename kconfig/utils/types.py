@@ -36,6 +36,8 @@ class KconfigStruct:
     file: Path
     configs: list[KconfigStructConfig] = field(default_factory=list)
 
+    nested_structs: list["KconfigStruct"] = field(default_factory=list)
+
     def __post_init__(self) -> None:
         """Normalize C code after instantiation."""
         self.body = utils.normalize_struct(self.body)
@@ -51,9 +53,9 @@ class KconfigSignature:
     file: Path
 
     # Extracted structures from the signature
-    structs: set[str] = field(default_factory=set)
-    unions: set[str] = field(default_factory=set)
-    typedefs: set[str] = field(default_factory=set)
+    structs: list[str] = field(default_factory=list)
+    unions: list[str] = field(default_factory=list)
+    typedefs: list[str] = field(default_factory=list)
 
 
 @dataclass

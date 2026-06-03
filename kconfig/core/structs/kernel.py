@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from kconfig.core import parser, utils
 from kconfig.utils import KconfigFileNoMatchError, KconfigStruct, ui
 
-from .utils import get_struct_configs
+from .utils import get_custom_struct_members, get_struct_configs
 
 
 if TYPE_CHECKING:
@@ -45,7 +45,22 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {struct_name}")
 
 
-def get_kernel_struct(kernel_root: Path, struct_name: str) -> KconfigStruct:
+def get_recursive_kernel_struct(kernel_root: Path, struct_name: str, visited: set[str] | None = None) -> KconfigStruct:
+    """Recursively find nested structures inside a given structure."""
+    if visited is None:
+        visited = set()
+
+    if struct_name in visited:
+        return None
+
+    visited.add(struct_name)
+
+    struct = get_kernel_struct(kernel_root, struct_name)
+    for member in get_custom_struct_members(struct.body):
+        print(member)
+
+
+def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = False) -> KconfigStruct:
     """Get a structure's configuration from the kernel.
 
     Args:
@@ -56,5 +71,9 @@ def get_kernel_struct(kernel_root: Path, struct_name: str) -> KconfigStruct:
         KconfigStruct: Structure information, to include configuration options.
 
     """
+    if recursive:
+        ui.out_info(f"Checking recursively: {struct_name}")
+        return get_recursive_kernel_struct(kernel_root, struct_name)
+
     struct = get_kernel_struct_code(kernel_root, struct_name)
     return get_struct_configs(struct)
