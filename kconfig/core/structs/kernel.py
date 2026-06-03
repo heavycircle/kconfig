@@ -47,6 +47,7 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
 
 def get_recursive_kernel_struct(kernel_root: Path, struct_name: str, visited: set[str] | None = None) -> KconfigStruct:
     """Recursively find nested structures inside a given structure."""
+    # TODO: Finish
     if visited is None:
         visited = set()
 

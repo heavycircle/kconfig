@@ -94,6 +94,7 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
 
 def get_custom_struct_members(struct_code: bytes) -> tuple[set[bytes], ...]:
     """Get custom struct members."""
+    # TODO: Docs
     structs, unions, typedefs = set[bytes](), set[bytes](), set[bytes]()
     for _, captures in parser.run_query(struct_code, parser.get_query("signature-match")):
         structs.update(utils.get_node_text(n) for n in captures.get("struct.name", []))

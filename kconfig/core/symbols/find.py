@@ -55,6 +55,7 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {symbol_name}")
 
 
+# TODO: Consider renaming this to something more signature related, since we know what it is.
 def get_symbol(kernel_root: Path, symbol_name: str) -> KconfigSignature:
     """Parser the provided kernel for a symbol.
 
@@ -69,6 +70,7 @@ def get_symbol(kernel_root: Path, symbol_name: str) -> KconfigSignature:
     signature = get_function_signature(kernel_root, symbol_name)
     snippet = f"{signature.signature} {{}}".encode()
 
+    # TODO - Call get_custom_struct_members here.
     structs, unions, typedefs = set[bytes](), set[bytes](), set[bytes]()
     for _, captures in parser.run_query(snippet, parser.get_query("signature-match")):
         structs.update(utils.get_node_text(n) for n in captures.get("struct.name", []))
