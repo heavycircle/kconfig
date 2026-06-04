@@ -14,6 +14,29 @@ if TYPE_CHECKING:
     from kconfig.utils import KconfigStruct
 
 
+def _extract_field_name(node: Node) -> str:
+    """Find field_identifier recursively within a declarator node."""
+    nodes_to_check = [child]
+    while nodes_to_check:
+        current = nodes_to_check.pop(0)
+        if current.type == "field_identifier" and current.text:
+            return current.text.decode("utf-8")
+        nodes_to_check.extend(current.children)
+
+    return ""
+
+def _get_anonymous_type(node: None) -> KconfigStructFields:
+    """Flatten an anonymous struct or union into a type dictionary."""
+    result = KconfigStructFields()
+
+    body_node = node.child_by_field_name("body")
+    if body_node:
+        for inner_child in body_node.children:
+            if inner_child.type == "field_declaration":
+                result.update(parse_field_declaration(inner_field))
+
+    return result
+
 def parse_field_declaration(node: Node) -> dict[str, str]:
     """Parse a field_declaration and return a field dictionary.
 
@@ -27,31 +50,30 @@ def parse_field_declaration(node: Node) -> dict[str, str]:
     result: dict[str, str] = {}
 
     type_node = node.child_by_field_name("type")
-    if not type_node or not type_node.text:
+    if not type_node:
         return result
 
+    # Flatten the AST for anonymous unions
+    if type_node.type in ("struct_specifier", "union_specifier"):
+        has_declarator = any(child.is_named and child != type_node for child in node.children)
+        if not has_declarator:
+            return _parse_anonymous_type(type_node)
+
+    if not type_node.text:
+        return result
+
+    # Parse standard fields
     base_type = type_node.text.decode("utf-8").strip()
     for child in node.children:
         if child == type_node or not child.is_named:
             continue
-
+        
+        # Find the name
         decl_text = child.text.decode("utf-8").strip() if child.text else ""
-
-        # Find the actual name inside the declarator
-        name = ""
-        nodes_to_check = [child]
-        while nodes_to_check:
-            current = nodes_to_check.pop(0)
-            if current.type == "field_identifier" and current.text:
-                name = current.text.decode("utf-8")
-                break
-            nodes_to_check.extend(current.children)
-
-        if not name:
-            continue
+        name = _extract_field_name(child)
+        modifiers = decl_text.replace(name, "").strip()
 
         # Construct the full C type
-        modifiers = decl_text.replace(name, "").strip()
         full_type = f"{base_type} {modifiers}".strip()
         full_type = full_type.replace("*", " *").replace("  ", " ").strip()
         result[name] = full_type
@@ -72,7 +94,7 @@ def parse_field_declaration_list(node: Node) -> dict[str, str]:
     layout: dict[str, str] = {}
 
     if node.type != "field_declaration_list":
-        raise ValueError(f"Expected field_declaration_list, got {node.type}")
+        raise KconfigASTAnomalyError(node.type, "Expected field_declaration_list")
 
     for child in node.children:
         if child.type == "field_declaration":
@@ -91,9 +113,6 @@ def get_struct_members(struct: KconfigStruct) -> dict[str, str]:
         nodes = get_capture_nodes(captures, "struct.body")
         if len(nodes) != 1:
             raise KconfigQueryImpossibleError(f"More than one structure found: {struct.name}")
-
         module_fields = parse_field_declaration_list(nodes[0])
 
-    if not module_fields:
-        raise KconfigQueryImpossibleError(f"No members found in {struct.name}")
-    return module_fields
+    return module_fields or {}
