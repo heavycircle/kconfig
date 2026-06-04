@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from tree_sitter import Node
 
 from kconfig.core import utils
-
+from .normalize import normalize_struct
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,13 +19,15 @@ KconfigQueryCapture = dict[str, list[Node]]
 KconfigQueryResult = list[tuple[int, KconfigQueryCapture]]
 """Results from tree_sitte queries."""
 
+KconfigStructFields = dict[str, str]
+"""Fields inside a structure. Represented as { name: type }."""
 
 @dataclass
 class KconfigStructConfig:
     """Class to represent CONFIG options and their fields."""
 
     name: str
-    fields: dict[str, str] = field(default_factory=dict)
+    fields: KconfigStructFields = field(default_factory=KconfigStructFields)
 
 
 @dataclass
@@ -34,12 +37,21 @@ class KconfigStruct:
     name: str
     body: bytes
     file: Path
+    fields: KconfigStructFields = field(default_factory=KconfigStructFields)
     configs: list[KconfigStructConfig] = field(default_factory=list)
     nested_structs: list[KconfigStruct] = field(default_factory=list)
 
+    @property
+    def nested_count(self) -> int:
+        """Recursively count the struct's children."""
+        count = len(self.nested_structs)
+        for child in self.nested_structs:
+            count += child.nested_count
+        return count
+
     def __post_init__(self) -> None:
         """Normalize C code after instantiation."""
-        self.body = utils.normalize_struct(self.body)
+        self.body = normalize_struct(self.body)
 
 
 @dataclass
@@ -63,17 +75,44 @@ class KconfigSignature:
 
 
 @dataclass
-class KconfigStructComparison:
-    """Class to represent a comparison between structures."""
+class KconfigEvidence:
+    """Represent a single piece of evidence for a config state."""
+    
+    struct_name: str
+    field_name: str
+    is_enabled: bool
+    
+    def __str__(self):
+        state = "ENABLED" if self.is_enabled else "DISABLED"
+        verb = "Found" if self.is_enabled else "Missing"
+        return f"[{state}] {verb} '{self.field_name}' in '{self.struct_name}'"
 
-    name: str
 
-    enabled_configs: set[str] = field(default_factory=set)
-    disabled_configs: set[str] = field(default_factory=set)
-    order_mismatches: set[str] = field(default_factory=set)
-    type_mismatches: set[str] = field(default_factory=set)
+class AnalysisReport:
+    """Aggregate all evidence and automatically flags conflicts."""
+    
+    def __init__(self):
+        self.log: dict[str, list[KconfigEvidence]] = defaultdict(list)
+
+    def add_evidence(self, config_name: str, evidence: KconfigEvidence):
+        self.log[config_name].append(evidence)
 
     @property
-    def is_match(self) -> bool:
-        """True if two structures match with no errors."""
-        return not self.order_mismatches and not self.type_mismatches
+    def enabled_configs(self) -> dict[str, list[KconfigEvidence]]:
+        """Returns configs where ALL evidence points to True."""
+        return {k: v for k, v in self.log.items() if all(e.is_enabled for e in v)}
+
+    @property
+    def disabled_configs(self) -> dict[str, list[KconfigEvidence]]:
+        """Returns configs where ALL evidence points to False."""
+        return {k: v for k, v in self.log.items() if all(not e.is_enabled for e in v)}
+
+    @property
+    def conflicts(self) -> dict[str, list[KconfigEvidence]]:
+        """Returns configs where evidence contradicts itself."""
+        results = {}
+        for config, evidence_list in self.log.items():
+            states = {e.is_enabled for e in evidence_list}
+            if len(states) > 1:
+                results[config] = evidence_list
+        return results
