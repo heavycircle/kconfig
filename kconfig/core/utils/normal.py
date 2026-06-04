@@ -32,8 +32,10 @@ def normalize_struct(code: bytes) -> bytes:
 
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)  # Remove block comments
     text = re.sub(r"//.*", "", text)  # Remove inline comments
-    text = re.sub(r"\s+", " ", text)  # Collapse whitespace
-    text = re.sub(r"\s*([\{\}\[\]\(\);\*\,])\s*", r"\1", text)  # Clean up structure spacing
+    text = re.sub(r"[^\S\n]+", " ", text)  # Collapse horizontal whitespace, preserve newlines
+    text = re.sub(r"\n{2,}", "\n", text)  # Collapse multiple blank lines
+    # Use [^\S\n] so we don't consume newlines — preprocessor directives are line-oriented
+    text = re.sub(r"[^\S\n]*([\{\}\[\]\(\);\*\,])[^\S\n]*", r"\1", text)  # Clean up structure spacing
     text = re.sub(r"(?<=[a-zA-Z0-9_])(\*+)", r" \1", text)  # Inspect spaces before asterisks
 
     # Inject single spaces for readability
