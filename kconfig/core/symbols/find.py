@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
 from kconfig.core.structs.utils import get_custom_struct_members
-from kconfig.utils import KconfigFileNoMatchError, KconfigSignature, ui
+from kconfig.utils import KconfigSignature, KconfigSymbolNotFoundError, ui
 
 
 if TYPE_CHECKING:
@@ -48,11 +48,9 @@ def get_function_signature_code(kernel_root: Path, symbol_name: str) -> KconfigS
                 continue
 
             ui.out_debug(f"Found {'macro' if is_macro else 'function'} {symbol_name} in {file} ...")
-            return KconfigSignature(
-                name=symbol_name, signature=signature.decode().strip(), is_macro=is_macro, file=file
-            )
+            return KconfigSignature(symbol_name, signature.decode().strip(), is_macro=is_macro, file=file)
 
-    raise KconfigFileNoMatchError(f"Cannot find a file defining: {symbol_name}")
+    raise KconfigSymbolNotFoundError(f"Cannot find a file defining: {symbol_name}")
 
 
 def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignature:
