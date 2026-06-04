@@ -15,6 +15,7 @@ from .exceptions import (
     KconfigSymbolNotFoundError,
     KconfigToolingError,
 )
+from .normalize import normalize_field, normalize_struct, normalize_type, sanitize_kernel_macros
 from .logging import ui
 from .types import (
     KconfigCustomMembers,
@@ -54,4 +55,5 @@ __all__ = [
     "KconfigSymbolNotFoundError",
     "KconfigToolingError",
     "ui",
+    "normalize_field", "normalize_struct", "normalize_type", "sanitize_kernel_macros",
 ]
