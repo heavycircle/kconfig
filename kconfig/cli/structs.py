@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 
 from kconfig.core import structs, utils
-from kconfig.utils import ui
+from kconfig.utils import KconfigSymbolNotFoundError, ui
 
 
 app = typer.Typer()
@@ -20,8 +20,13 @@ def struct_find(
     """Find a symbol inside the kernel."""
     ui.out_info(f"Finding symbol: {symbol_name}")
 
-    kernel = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name, recursive=recursive)
-    ui.out_info(kernel)
+    struct = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name, recursive=recursive)
+    if not struct:
+        raise KconfigSymbolNotFoundror(symbol_name, "linux-3.2.63")
+
+    ui.out_info(struct)
+    if recursive:
+        ui.out_info(f"Found {struct.nested_count} dependencies!")
 
 
 @app.command("compare")
@@ -32,7 +37,9 @@ def struct_compare(
     ui.out_info(f"Finding symbol: {symbol_name}")
 
     kernel = structs.get_kernel_struct(Path("linux-3.2.63"), symbol_name)
-    module = structs.get_module_struct(Path("dolos.ko"), symbol_name)
-
-    compare = structs.compare_structure(kernel, module)
-    utils.print_struct_comparison(compare)
+    if not kernel:
+        raise KconfigSymbolNotFoundror(symbol_name, "linux-3.2.63")
+    
+    structs.get_module_capabilities(kernel, module)
+    report = struct.analyze_struct_tre(kernel)
+    utils.print_struct_comparison(symbol_name, report)
