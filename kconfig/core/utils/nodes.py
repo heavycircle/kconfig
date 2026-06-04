@@ -19,8 +19,8 @@ def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:
         key (str): Key to find.
 
     Raises:
-        KconfigQueryNoMatchError: Key not found.
-        KconfigQueryImpossibleError: Missing text from query.
+        KconfigASTAnomalyError: Capture group missing from query results.
+        KconfigASTAnomalyError: Missing text from query.
 
     Returns:
         list[Node]: List of nodes found.
@@ -28,9 +28,9 @@ def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:
     """
     nodes = captures.get(key)
     if not nodes:
-        raise KconfigQueryNoMatchError(f"Key not found: {key}")
+        raise KconfigASTAnomalyError(key, "Capture group missing from query results.")
     if not all(n.text for n in nodes):
-        raise KconfigQueryImpossibleError(f"Missing text in node {getattr(nodes, 'type', 'Unknown')}")
+        raise KconfigASTAnomalyError(key, "Some nodes contain no text payload.")
 
     return nodes
 
@@ -56,12 +56,15 @@ def get_node_text(node: Node | None) -> bytes:
         node (Node | None): Node to parse.
 
     Raises:
-        KconfigQueryImpossibleError: Missing contents of the structure.
+        KconfigASTAnomalyError: Not a tree-sitter node.
+        KconfigASTAnomalyError: Node contains no text payload.
 
     Returns:
         bytes: Retrieved item text.
 
     """
-    if node is None or not node.text:
-        raise KconfigQueryImpossibleError(f"Missing text from {getattr(node, 'type', 'Unknown')}")
+    if not node:
+        raise KconfigASTAnomalyError("None", "Expected tree-sitter node, received None.")
+    if not node.text:
+        raise KconfigASTAnomalyError(node.type, "Node contains no text payload.")
     return node.text
