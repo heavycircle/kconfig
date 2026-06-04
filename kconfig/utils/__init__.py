@@ -11,6 +11,7 @@ from .exceptions import (
     KconfigQueryImpossibleError,
     KconfigQueryInvalidError,
     KconfigQueryNoMatchError,
+    KconfigSymbolAliasedError,
 )
 from .logging import ui
 from .types import (
@@ -42,5 +43,6 @@ __all__ = [
     "KconfigStruct",
     "KconfigStructComparison",
     "KconfigStructConfig",
+    "KconfigSymbolAliasedError",
     "ui",
 ]

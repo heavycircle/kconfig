@@ -3,13 +3,33 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigFileNoMatchError, KconfigQueryNoMatchError, KconfigStruct, ui
+from kconfig.utils import (
+    KconfigFileNoMatchError,
+    KconfigQueryNoMatchError,
+    KconfigStruct,
+    KconfigSymbolAliasedError,
+    ui,
+)
 
 from .utils import get_custom_struct_members, get_struct_configs
 
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def get_kernel_struct_alias(kernel_root: Path, struct_name: str) -> str | None:
+    """Hunt for #define or typedef that aliases this symbol."""
+    query = parser.get_query("alias-find")
+    for file in utils.find_candidate_struct_files(kernel_root, struct_name):
+        contents = file.read_bytes()
+        for _, captures in parser.run_query(contents, query):
+            alias_name = utils.get_capture_text(captures, "alias.name")
+            alias_target = utils.get_capture_text(captures, "alias.target")
+            if alias_name and alias_name[0].decode() == struct_name:
+                return alias_target[0].decode()
+
+    return None
 
 
 def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct:
@@ -43,6 +63,9 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
                 file=file,
             )
 
+    true_name = get_kernel_struct_alias(kernel_root, struct_name)
+    if true_name:
+        raise KconfigSymbolAliasedError(original_name=struct_name, true_name=true_name)
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {struct_name}")
 
 
@@ -87,5 +110,11 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
             raise KconfigQueryNoMatchError(f"Could not find struct: {struct_name}")
         return struct
 
-    struct = get_kernel_struct_code(kernel_root, struct_name)
+    try:
+        struct = get_kernel_struct_code(kernel_root, struct_name)
+    except KconfigSymbolAliasedError as e:
+        ui.out_debug(f"Found Alias: {e.original_name} -> {e.true_name}")
+        struct = get_kernel_struct_code(kernel_root, e.true_name)
+        # TODO: Maybe store its original name somewhere.
+
     return get_struct_configs(struct)

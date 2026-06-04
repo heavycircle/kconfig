@@ -23,7 +23,6 @@ def get_struct_configs(struct: KconfigStruct) -> KconfigStruct:
     """
     query = parser.get_query("struct-config")
     matches = parser.run_query(utils.sanitize_kernel_macros(struct.body), query)
-    print(matches)
     for _, captures in matches:
         # Ensure we have a valid capture.
         names = utils.get_capture_text(captures, "config.name")

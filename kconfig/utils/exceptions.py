@@ -39,3 +39,13 @@ class KconfigAnalysisError(KconfigError):
 
 class KconfigAnalysisInvalidError(KconfigAnalysisError):
     """Errors relating to invalid analysis issues."""
+
+
+class KconfigSymbolAliasedError(KconfigQueryError):
+    """Raised when a target struct is actually a macro alias or typedef."""
+
+    def __init__(self, original_name: str, true_name: str) -> None:
+        self.original_name = original_name
+        self.true_name = true_name
+
+        super().__init__(f"'{original_name}' is an alias for '{true_name}'")
