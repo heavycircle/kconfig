@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
 from kconfig.utils import (
-    KconfigFileNoMatchError,
-    KconfigQueryNoMatchError,
     KconfigStruct,
     KconfigSymbolAliasedError,
+    KconfigSymbolNotFoundError,
     ui,
 )
 
@@ -46,7 +45,6 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
         KconfigStruct: Matching structure inside source file.
 
     """
-    # BUG: This fails to find 'if defined(CONFIG_)'. Example: rpc_xprt
     query = parser.get_query("struct-find").replace("__STRUCT_NAME__", struct_name)
     for file in utils.find_candidate_struct_files(kernel_root, struct_name):
         contents = file.read_bytes()
@@ -57,40 +55,15 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
                 continue
 
             ui.out_debug(f"Found struct {struct_name} in {file} ...")
-            return KconfigStruct(
-                name=struct_names[0].decode(),
-                body=struct_defs[0],
-                file=file,
-            )
+            return KconfigStruct(name=struct_names[0].decode(), body=struct_defs[0], file=file)
 
     true_name = get_kernel_struct_alias(kernel_root, struct_name)
     if true_name:
         raise KconfigSymbolAliasedError(original_name=struct_name, true_name=true_name)
-    raise KconfigFileNoMatchError(f"Cannot find a file defining: {struct_name}")
+    raise KconfigSymbolNotFoundError(struct_name, kernel_root)
 
 
-def get_recursive_kernel_struct(
-    kernel_root: Path, struct_name: str, visited: set[str] | None = None
-) -> KconfigStruct | None:
-    """Recursively find nested structures inside a given structure."""
-    if visited is None:
-        visited = set()
-    if struct_name in visited:
-        return None
-    visited.add(struct_name)
-
-    struct = get_kernel_struct(kernel_root, struct_name)
-    members = get_custom_struct_members(struct.body)
-    for member in members.structs:
-        ui.out_debug(f" >> {struct_name} has recursive member: {member}")
-        nested_struct = get_recursive_kernel_struct(kernel_root, member, visited)
-        if nested_struct:
-            struct.nested_structs.append(nested_struct)
-
-    return struct
-
-
-def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = False) -> KconfigStruct:
+def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = False, visited: set[str] | None = None) -> KconfigStruct | None:
     """Get a structure's configuration from the kernel.
 
     Args:
@@ -103,12 +76,13 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
         KconfigStruct: Structure information, to include configuration options.
 
     """
-    if recursive:
-        ui.out_info(f"Checking recursively: {struct_name}")
-        struct = get_recursive_kernel_struct(kernel_root, struct_name)
-        if not struct:
-            raise KconfigQueryNoMatchError(f"Could not find struct: {struct_name}")
-        return struct
+    if visited is None:
+        visited = set()
+        
+    if struct_name in visited:
+        ui.out_debug(f"Cycle detected for '{struct_name}', skipping ...")
+        return None
+    visited.add(struct_name)
 
     try:
         struct = get_kernel_struct_code(kernel_root, struct_name)
@@ -117,4 +91,21 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
         struct = get_kernel_struct_code(kernel_root, e.true_name)
         # TODO: Maybe store its original name somewhere.
 
-    return get_struct_configs(struct)
+    struct.configs = get_struct_configs(struct)
+    
+    if recursive:
+        ui.out_debug(f" >> Checking recursively: {struct_name}")
+        members = get_custom_struct_members(struct.body)
+        for member in members.structs:
+            ui.out_debug(f" >> {struct_name} has recursive member: {member}")
+
+            try:
+                nested_struct = get_kernel_struct(kernel_root, member, recursive=True, visited=visited)
+                if nested_struct:
+                    struct.nested_structs.append(nested_struct)
+            except KconfigSymbolNotFoundError as e:
+                ui.out_debug(f"Could not find nested struct: '{member}': {e}")
+
+        return struct
+            raise KconfigQueryNoMatchError(f"Could not find struct: {struct_name}")
+        return struct
