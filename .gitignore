@@ -1,14 +1,29 @@
-# Python-generated files
+# Test files
+/linux-*/
+/linux-*.tar.[xg]z
+*.ko
+
+# Byte-compiled files
 __pycache__/
-*.py[oc]
-build/
+*.py[cod]
+*$py.class
+
+# Distribution
+.*cache/
 dist/
-wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
+venv/
 
-# Linux kernels (sample files)
-/linux-*/
-/linux-*.tar.[xg]z
+# Coverage
+.coverage*
+htmlcov/
+coverage.xml
+junit.xml
+
+# IDE Files
+.idea/
+.vscode/
+*.sw[op]
