@@ -14,6 +14,7 @@ from .exceptions import (
 )
 from .logging import ui
 from .types import (
+    KconfigCustomMembers,
     KconfigQueryCapture,
     KconfigQueryResult,
     KconfigSignature,
@@ -26,6 +27,7 @@ from .types import (
 __all__ = [
     "KconfigAnalysisError",
     "KconfigAnalysisInvalidError",
+    "KconfigCustomMembers",
     "KconfigError",
     "KconfigFileError",
     "KconfigFileInvalidError",

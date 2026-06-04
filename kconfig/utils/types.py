@@ -35,12 +35,20 @@ class KconfigStruct:
     body: bytes
     file: Path
     configs: list[KconfigStructConfig] = field(default_factory=list)
-
-    nested_structs: list["KconfigStruct"] = field(default_factory=list)
+    nested_structs: list[KconfigStruct] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Normalize C code after instantiation."""
         self.body = utils.normalize_struct(self.body)
+
+
+@dataclass
+class KconfigCustomMembers:
+    """Class to represent custom members of code."""
+
+    structs: set[str] = field(default_factory=set)
+    unions: set[str] = field(default_factory=set)
+    typedefs: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -51,11 +59,7 @@ class KconfigSignature:
     signature: str
     is_macro: bool
     file: Path
-
-    # Extracted structures from the signature
-    structs: list[str] = field(default_factory=list)
-    unions: list[str] = field(default_factory=list)
-    typedefs: list[str] = field(default_factory=list)
+    members: KconfigCustomMembers = field(default_factory=KconfigCustomMembers)
 
 
 @dataclass

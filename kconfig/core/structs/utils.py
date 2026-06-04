@@ -3,6 +3,7 @@ from __future__ import annotations
 from kconfig.core import parser, utils
 from kconfig.utils import (
     KconfigAnalysisInvalidError,
+    KconfigCustomMembers,
     KconfigStruct,
     KconfigStructComparison,
     KconfigStructConfig,
@@ -22,6 +23,7 @@ def get_struct_configs(struct: KconfigStruct) -> KconfigStruct:
     """
     query = parser.get_query("struct-config")
     matches = parser.run_query(utils.sanitize_kernel_macros(struct.body), query)
+    print(matches)
     for _, captures in matches:
         # Ensure we have a valid capture.
         names = utils.get_capture_text(captures, "config.name")
@@ -92,14 +94,24 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
     return result
 
 
-def get_custom_struct_members(struct_code: bytes) -> tuple[set[bytes], ...]:
-    """Get custom struct members."""
-    # TODO: Docs
-    structs, unions, typedefs = set[bytes](), set[bytes](), set[bytes]()
-    for _, captures in parser.run_query(struct_code, parser.get_query("signature-match")):
-        structs.update(utils.get_node_text(n) for n in captures.get("struct.name", []))
-        unions.update(utils.get_node_text(n) for n in captures.get("union.name", []))
-        typedefs.update(utils.get_node_text(n) for n in captures.get("typedef.name", []))
+def get_custom_struct_members(code: bytes) -> KconfigCustomMembers:
+    """Get custom struct members from code.
+
+    This method works for many types of code, but is most often used in this
+    application for function signatures and struct definitions.
+
+    Args:
+        code (bytes): Code to parse for return.
+
+    Returns:
+        KconfigCustomMembers: Custom members for this code.
+
+    """
+    structs, unions, typedefs = set[str](), set[str](), set[str]()
+    for _, captures in parser.run_query(code, parser.get_query("signature-match")):
+        structs.update(utils.get_node_text(n).decode() for n in captures.get("struct.name", []))
+        unions.update(utils.get_node_text(n).decode() for n in captures.get("union.name", []))
+        typedefs.update(utils.get_node_text(n).decode() for n in captures.get("typedef.name", []))
 
     typedefs = typedefs - structs - unions
-    return structs, unions, typedefs
+    return KconfigCustomMembers(structs, unions, typedefs)
