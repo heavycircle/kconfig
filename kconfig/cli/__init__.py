@@ -29,9 +29,6 @@ def main() -> None:
         app()
 
     except KconfigError as e:
-        if ui.debug_mode:
-            raise
-
         ui.out_error(e)
         sys.exit(1)
 

@@ -1,58 +1,88 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-    from pathlib import Path
+    from collections.abc import Generator, Sequence
 
 
-def _find_candidate_files(root: Path, pattern: str, symbol_name: str) -> Generator[Path]:
-    """Find header files that might contain the definition of the symbol.
+def _scan_files_priority(phrases: Sequence[tuple[Path, str]], symbol_name: str) -> Generator[Path]:
+    """Scan paths in priority order, ensuring no duplicate reads.
 
     Args:
-        root (str): Base directory to search for files.
-        pattern (str): Pattern to glob for.
-        symbol_name (str): Name of the symbol to find.
+        phrases (Sequence[tuple[Path, str]]): Priority list of search files.
+        symbol_name (str): Symbol to search for.
 
     Yields:
-        Path: Path to the file possibly containing the symbol definition.
+        Path: Path that might contain the symbol's definition.
 
     """
-    symbol_bytes = symbol_name.encode("utf-8")
+    symbol_bytes = symbol_name.encode()
+    seen_files = set[Path]()
 
-    for path in root.rglob(pattern):
-        try:
-            if symbol_bytes in path.read_bytes():
-                yield path
-        except (PermissionError, FileNotFoundError):  # noqa: PERF203
+    for search_dir, pattern in phrases:
+        if not search_dir.exists():
             continue
 
+        for path in search_dir.rglob(pattern):
+            if path in seen_files:
+                continue
+            seen_files.add(path)
 
-def find_candidate_source_files(kernel_root: Path, symbol_name: str) -> Generator[Path]:
-    """Find source files that might contain the definition of the symbol.
+            try:
+                if symbol_bytes in path.read_bytes():
+                    yield path
+            except (PermissionError, FileNotFoundError):
+                continue
+
+
+def find_candidate_function_files(kernel_root: Path, function_name: str) -> Generator[Path]:
+    """Optimized search for function signatures inside the kernel.
+
+    Priority order:
+        1. Source files - The function's definition.
+        2. Global headers - Static functions and inline macros.
+        3. Local headers - Subsystem-specific inlines.
 
     Args:
-        kernel_root (Path): Base directory to search for files.
-        symbol_name (str): Name of the symbol to find.
+        kernel_root (Path): Path to the kernel root.
+        function_name (str): The function to search for.
 
     Yields:
-        Path: Path to the file possibly containing the symbol definition.
+        Path: Files that might contain the function signature.
 
     """
-    return _find_candidate_files(kernel_root, "*.c", symbol_name)
+    phrases = [
+        (kernel_root, "*.c"),
+        (kernel_root / "include", "*.h"),
+        (kernel_root, "*.h"),
+    ]
+    return _scan_files_priority(phrases, function_name)
 
 
-def find_candidate_header_files(kernel_root: Path, symbol_name: str) -> Generator[Path]:
-    """Find source files that might contain the definition of the symbol.
+def find_candidate_struct_files(kernel_root: Path, struct_name: str) -> Generator[Path]:
+    """Optimized search for struct definitions inside the kernel.
+
+    Priority order:
+        1. Global headers - Most definitions are here.
+        2. Arch headers - Architecture specific structs.
+        3. Local headers - Private subsystem structs.
+        4. Source files - Private or opaque structs.
 
     Args:
-        kernel_root (Path): Base directory to search for files.
-        symbol_name (str): Name of the symbol to find.
+        kernel_root (Path): Path to the kernel root.
+        function_name (str): The function to search for.
 
     Yields:
-        Path: Path to the file possibly containing the symbol definition.
+        Path: Files that might contain the struct definition.
 
     """
-    return _find_candidate_files(kernel_root / "include", "*.h", symbol_name)
+    phrases = [
+        (kernel_root / "include", "*.h"),
+        (kernel_root / "arch", "*.h"),
+        (kernel_root, "*.h"),
+        (kernel_root, "*.c"),
+    ]
+    return _scan_files_priority(phrases, struct_name)

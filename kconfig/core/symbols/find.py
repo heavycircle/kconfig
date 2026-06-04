@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
+from kconfig.core.structs.utils import get_custom_struct_members
 from kconfig.utils import KconfigFileNoMatchError, KconfigSignature, ui
 
 
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignature:
+def get_function_signature_code(kernel_root: Path, symbol_name: str) -> KconfigSignature:
     """Get a function's signature.
 
     Args:
@@ -25,11 +26,10 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
 
     """
     query = parser.get_query("signature-find").replace("__SYMBOL_NAME__", symbol_name)
-    for file in utils.find_candidate_source_files(kernel_root, symbol_name):
+    for file in utils.find_candidate_function_files(kernel_root, symbol_name):
         contents = file.read_bytes()
         for _, captures in parser.run_query(contents, query):
             is_macro = False
-            signature = b""
 
             if "func.def" in captures:
                 node = captures["func.def"][0]
@@ -55,8 +55,8 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
     raise KconfigFileNoMatchError(f"Cannot find a file defining: {symbol_name}")
 
 
-def get_symbol(kernel_root: Path, symbol_name: str) -> KconfigSignature:
-    """Parser the provided kernel for a symbol.
+def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignature:
+    """Enumerate a function's signature for custom config values.
 
     Args:
         kernel_root (Path): Root of the kernel source tree.
@@ -66,16 +66,6 @@ def get_symbol(kernel_root: Path, symbol_name: str) -> KconfigSignature:
         KconfigSignature: Signature representing this symbol.
 
     """
-    signature = get_function_signature(kernel_root, symbol_name)
-    snippet = f"{signature.signature} {{}}".encode()
-
-    structs, unions, typedefs = set[bytes](), set[bytes](), set[bytes]()
-    for _, captures in parser.run_query(snippet, parser.get_query("signature-match")):
-        structs.update(utils.get_node_text(n) for n in captures.get("struct.name", []))
-        unions.update(utils.get_node_text(n) for n in captures.get("union.name", []))
-        typedefs.update(utils.get_node_text(n) for n in captures.get("typedef.name", []))
-
-    signature.structs = [s.decode() for s in structs]
-    signature.unions = [u.decode() for u in unions]
-    signature.typedefs = [t.decode() for t in typedefs - structs - unions]
+    signature = get_function_signature_code(kernel_root, symbol_name)
+    signature.members = get_custom_struct_members(signature.signature.encode())
     return signature

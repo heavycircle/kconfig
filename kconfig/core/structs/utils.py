@@ -3,7 +3,7 @@ from __future__ import annotations
 from kconfig.core import parser, utils
 from kconfig.utils import (
     KconfigAnalysisInvalidError,
-    KconfigQueryImpossibleError,
+    KconfigCustomMembers,
     KconfigStruct,
     KconfigStructComparison,
     KconfigStructConfig,
@@ -58,21 +58,10 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
     if kernel_struct.name != module_struct.name:
         raise KconfigAnalysisInvalidError(f"Comparing different structs: {kernel_struct.name} and {module_struct.name}")
 
-    # Get field dictionary for module_struct
-    # TODO: Move this to another function
-    query = parser.get_query("struct-find").replace("__STRUCT_NAME__", module_struct.name)
-    module_fields: dict[str, str] = {}
-    for _, captures in parser.run_query(module_struct.body, query):
-        nodes = utils.get_capture_nodes(captures, "struct.body")
-        if len(nodes) != 1:
-            raise KconfigQueryImpossibleError(f"More than one structure found: {module_struct.name}")
-
-        module_fields = utils.parse_field_declaration_list(nodes[0])
-    if not module_fields:
-        raise KconfigQueryImpossibleError(f"No members found in {module_struct.name}")
+    module_fields = utils.get_struct_members(module_struct)
+    result = KconfigStructComparison(name=kernel_struct.name)
 
     # Compare the kernel_struct to this fields list
-    result = KconfigStructComparison(name=kernel_struct.name)
     ui.out_info(f"Checking {len(kernel_struct.configs)} config guards ...")
     for config in kernel_struct.configs:
         ui.out_debug(f" >> Checking configs: '{config.name}'")
@@ -102,3 +91,26 @@ def compare_structure(kernel_struct: KconfigStruct, module_struct: KconfigStruct
             result.disabled_configs.add(config.name)
 
     return result
+
+
+def get_custom_struct_members(code: bytes) -> KconfigCustomMembers:
+    """Get custom struct members from code.
+
+    This method works for many types of code, but is most often used in this
+    application for function signatures and struct definitions.
+
+    Args:
+        code (bytes): Code to parse for return.
+
+    Returns:
+        KconfigCustomMembers: Custom members for this code.
+
+    """
+    structs, unions, typedefs = set[str](), set[str](), set[str]()
+    for _, captures in parser.run_query(code, parser.get_query("signature-match")):
+        structs.update(utils.get_node_text(n).decode() for n in captures.get("struct.name", []))
+        unions.update(utils.get_node_text(n).decode() for n in captures.get("union.name", []))
+        typedefs.update(utils.get_node_text(n).decode() for n in captures.get("typedef.name", []))
+
+    typedefs = typedefs - structs - unions
+    return KconfigCustomMembers(structs, unions, typedefs)
