@@ -7,10 +7,25 @@ import requests
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
 
+from kconfig.core import utils
 from kconfig.utils import CACHE_DIR, ui
 
 
 app = typer.Typer()
+
+@app.command("list")
+def kernel_list() -> None:
+    """List the available cached kernels."""
+    kernel_dir = CACHE_DIR / "kernel"
+    versions = [p.name.replace("linux-","") for p in kernel_dir.glob("linux-*") if p.is_dir()]
+
+    def version_sort(v: str) -> list[int]:
+        try:
+            return [int(p) for p in v.split(".")]
+        except ValueError:
+            return [0]
+
+    utils.print_kernel_versions(sorted(versions, key=version_sort, reverse=True), kernel_dir)
 
 
 @app.command("fetch")
@@ -56,7 +71,7 @@ def kernel_fetch(
 
         ui.out_info("Extracting tarball...")
         with tarfile.open(tarball_path, "r:xz") as tar:
-            tar.extractall(path=CACHE_DIR)
+            tar.extractall(path=kernel_dir)
 
         tarball_path.unlink()
         ui.out_success(f"Kernel {version} ready at {extract_dir}")
