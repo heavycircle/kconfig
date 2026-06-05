@@ -15,20 +15,6 @@ if TYPE_CHECKING:
     from tree_sitter import Node
 
 
-def get_kernel_struct_alias(kernel_root: Path, struct_name: str) -> str | None:
-    """Hunt for #define or typedef that aliases this symbol."""
-    query = parser.get_query("alias-find")
-    for file in utils.find_candidate_struct_files(kernel_root, struct_name):
-        contents = file.read_bytes()
-        for _, captures in parser.run_query(contents, query):
-            alias_name = utils.get_capture_text(captures, "alias.name")
-            alias_target = utils.get_capture_text(captures, "alias.target")
-            if alias_name and alias_name[0].decode() == struct_name:
-                return alias_target[0].decode()
-
-    return None
-
-
 def find_struct_declaration(kernel_root: Path, struct_name: str) -> tuple[Node, Path, str]:
     """Find the declaration of a structure inside the kernel directory.
 
