@@ -19,14 +19,16 @@ class KconfigState:
         self._kernel_dir = Path
         self._module_dir = Path
 
+    def _check_kernel_dir(self, kernel_dir: Path) -> None:
+        if not kernel_dir.exists():
+            raise KconfigInvalidArgumentError(version, "Missing kernel directory")
+        if not kernel_dir.is_dir():
+            raise KconfigMissingArgumentError(version, "Not a directory")
+
     @property
     def kernel_version(self) -> str | None:
         """Kernel version."""
         return self._kernel_version
-
-    @property
-    def kernel_dir(self) -> Path:
-        return self._kernel_dir
 
     @kernel_version.setter
     def kernel_version(self, version: str | None) -> None:
@@ -34,13 +36,24 @@ class KconfigState:
             raise KconfigMissingArgumentError("kernel_version")
 
         kernel_dir = CACHE_DIR / "kernel" / f"linux-{version}"
-        if not kernel_dir.exists():
-            raise KconfigInvalidArgumentError(version, "Missing kernel directory")
-        if not kernel_dir.is_dir():
-            raise KconfigMissingArgumentError(version, "Not a directory")
+        self._check_kernel_dir(kernel_dir)
 
         self._kernel_version = version
         self._kernel_dir = kernel_dir
+
+    @property
+    def kernel_dir(self) -> Path:
+        return self._kernel_dir
+
+    @kernel_dir.setter
+    def kernel_dir(self, path: str | Path | None) -> None:
+        if path is None:
+            raise KconfigMissingArgumentError("kernel_dir")
+
+        p = Path(path).resolve()
+        self._check_kernel_dir(p)
+
+        self._kernel_dir = p
 
     @property
     def module_dir(self) -> Path:
