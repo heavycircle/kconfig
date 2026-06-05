@@ -21,7 +21,8 @@ class UserInterface:
     """Provide a logging interface."""
 
     def __init__(self) -> None:
-        self.console = Console(theme=KCONFIG_THEME, stderr=True)
+        self.console = Console(theme=KCONFIG_THEME)
+
         self.debug_mode: bool = False
 
     def set_debug(self, enabled: bool) -> None:
