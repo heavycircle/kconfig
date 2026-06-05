@@ -23,7 +23,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt) -
 
         ui.out_info(struct)
         if recursive:
-            ui.out_info(f"Found {struct.nested_count} dependencies!")
+            ui.out_info(f"Found {struct.dependencies} dependencies!")
 
 
 @app.command("body")
