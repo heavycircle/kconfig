@@ -25,6 +25,13 @@ class KconfigFileInvalidError(KconfigFileError):
         super().__init__(f"Invalid file '{path}': {reason}")
 
 
+class KconfigFileNotFoundError(KconfigFileError):
+    """Raised when a file does not exist."""
+
+    def __init__(self, path: Path | str) -> None:
+        super().__init__(f"'{path}': Does not exist")
+
+
 # --- Query Errors ---------------------------------------------
 
 
@@ -35,8 +42,8 @@ class KconfigQueryError(KconfigError):
 class KconfigQuerySyntaxError(KconfigQueryError):
     """Raised when a Tree-sitter .scm query file is malformed."""
 
-    def __init__(self, query_name: str, syntax_error: str) -> None:
-        super().__init__(f"Syntax error in query '{query_name}': {syntax_error}")
+    def __init__(self, syntax_error: str) -> None:
+        super().__init__(f"Syntax error: {syntax_error}")
 
 
 class KconfigASTAnomalyError(KconfigQueryError):
