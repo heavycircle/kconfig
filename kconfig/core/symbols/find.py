@@ -50,7 +50,7 @@ def get_function_signature_code(kernel_root: Path, symbol_name: str) -> KconfigS
             ui.out_debug(f"Found {'macro' if is_macro else 'function'} {symbol_name} in {file} ...")
             return KconfigSignature(symbol_name, signature.decode().strip(), is_macro=is_macro, file=file)
 
-    raise KconfigSymbolNotFoundError(f"Cannot find a file defining: {symbol_name}")
+    raise KconfigSymbolNotFoundError(symbol_name, kernel_root)
 
 
 def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignature:

@@ -7,7 +7,7 @@ from .exceptions import (
     KconfigError,
     KconfigFileError,
     KconfigFileInvalidError,
-    KconfigFileNotFoundError,r
+    KconfigFileNotFoundError,
     KconfigLayoutMismatchError,
     KconfigQueryError,
     KconfigQuerySyntaxError,
@@ -17,8 +17,8 @@ from .exceptions import (
     KconfigSymbolNotFoundError,
     KconfigToolingError,
 )
-from .normalize import normalize_field, normalize_struct, normalize_type, sanitize_kernel_macros
 from .logging import ui
+from .normalize import normalize_field, normalize_struct, normalize_type, sanitize_kernel_macros
 from .types import (
     KconfigAnalysis,
     KconfigConfigEvidence,
@@ -37,6 +37,7 @@ __all__ = [
     "KconfigASTAnomalyError",
     "KconfigAnalysis",
     "KconfigAnalysisError",
+    "KconfigConfigEvidence",
     "KconfigCustomMembers",
     "KconfigError",
     "KconfigFileError",
@@ -57,6 +58,9 @@ __all__ = [
     "KconfigSymbolError",
     "KconfigSymbolNotFoundError",
     "KconfigToolingError",
+    "normalize_field",
+    "normalize_struct",
+    "normalize_type",
+    "sanitize_kernel_macros",
     "ui",
-    "normalize_field", "normalize_struct", "normalize_type", "sanitize_kernel_macros",
 ]

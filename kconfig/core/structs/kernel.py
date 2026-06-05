@@ -63,7 +63,12 @@ def get_kernel_struct_code(kernel_root: Path, struct_name: str) -> KconfigStruct
     raise KconfigSymbolNotFoundError(struct_name, kernel_root)
 
 
-def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = False, visited: set[str] | None = None) -> KconfigStruct | None:
+def get_kernel_struct(
+    kernel_root: Path,
+    struct_name: str,
+    recursive: bool = False,
+    visited: set[str] | None = None,
+) -> KconfigStruct | None:
     """Get a structure's configuration from the kernel.
 
     Args:
@@ -71,6 +76,7 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
         struct_name (str): Name of the structure to find.
         recursive (bool): True to search for recursive definitions.
             Can be intense, so defaults to False.
+        visited (set[str] | None): Recursive node track.
 
     Returns:
         KconfigStruct: Structure information, to include configuration options.
@@ -78,7 +84,7 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
     """
     if visited is None:
         visited = set()
-        
+
     if struct_name in visited:
         ui.out_debug(f"Cycle detected for '{struct_name}', skipping ...")
         return None
@@ -92,7 +98,7 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
         # TODO: Maybe store its original name somewhere.
 
     struct.configs = get_struct_configs(struct)
-    
+
     if recursive:
         ui.out_debug(f" >> Checking recursively: {struct_name}")
         members = get_custom_struct_members(struct.body)
@@ -106,6 +112,4 @@ def get_kernel_struct(kernel_root: Path, struct_name: str, recursive: bool = Fal
             except KconfigSymbolNotFoundError as e:
                 ui.out_debug(f"Could not find nested struct: '{member}': {e}")
 
-        return struct
-            raise KconfigQueryNoMatchError(f"Could not find struct: {struct_name}")
-        return struct
+    return struct

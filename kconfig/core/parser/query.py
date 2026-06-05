@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import tree_sitter
 import tree_sitter_c
 
-from kconfig.utils import KconfigFileError, KconfigQueryInvalidError, ui
+from kconfig.utils import ui
 
 
 if TYPE_CHECKING:

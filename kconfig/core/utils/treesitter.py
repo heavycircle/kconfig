@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser
-from kconfig.utils import KconfigQueryImpossibleError
+from kconfig.utils import KconfigASTAnomalyError, KconfigStructFields
 
 from .nodes import get_capture_nodes
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 def _extract_field_name(node: Node) -> str:
     """Find field_identifier recursively within a declarator node."""
-    nodes_to_check = [child]
+    nodes_to_check = [node]
     while nodes_to_check:
         current = nodes_to_check.pop(0)
         if current.type == "field_identifier" and current.text:
@@ -25,7 +25,8 @@ def _extract_field_name(node: Node) -> str:
 
     return ""
 
-def _get_anonymous_type(node: None) -> KconfigStructFields:
+
+def _get_anonymous_type(node: Node) -> KconfigStructFields:
     """Flatten an anonymous struct or union into a type dictionary."""
     result = KconfigStructFields()
 
@@ -33,9 +34,10 @@ def _get_anonymous_type(node: None) -> KconfigStructFields:
     if body_node:
         for inner_child in body_node.children:
             if inner_child.type == "field_declaration":
-                result.update(parse_field_declaration(inner_field))
+                result.update(parse_field_declaration(inner_child))
 
     return result
+
 
 def parse_field_declaration(node: Node) -> dict[str, str]:
     """Parse a field_declaration and return a field dictionary.
@@ -57,7 +59,7 @@ def parse_field_declaration(node: Node) -> dict[str, str]:
     if type_node.type in ("struct_specifier", "union_specifier"):
         has_declarator = any(child.is_named and child != type_node for child in node.children)
         if not has_declarator:
-            return _parse_anonymous_type(type_node)
+            return _get_anonymous_type(type_node)
 
     if not type_node.text:
         return result
@@ -67,7 +69,7 @@ def parse_field_declaration(node: Node) -> dict[str, str]:
     for child in node.children:
         if child == type_node or not child.is_named:
             continue
-        
+
         # Find the name
         decl_text = child.text.decode("utf-8").strip() if child.text else ""
         name = _extract_field_name(child)
@@ -112,7 +114,7 @@ def get_struct_members(struct: KconfigStruct) -> dict[str, str]:
     for _, captures in parser.run_query(struct.body, query):
         nodes = get_capture_nodes(captures, "struct.body")
         if len(nodes) != 1:
-            raise KconfigQueryImpossibleError(f"More than one structure found: {struct.name}")
+            raise KconfigASTAnomalyError(struct.name, "More than one structure found")
         module_fields = parse_field_declaration_list(nodes[0])
 
     return module_fields or {}

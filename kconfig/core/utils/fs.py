@@ -73,7 +73,7 @@ def find_candidate_struct_files(kernel_root: Path, struct_name: str) -> Generato
 
     Args:
         kernel_root (Path): Path to the kernel root.
-        function_name (str): The function to search for.
+        struct_name (str): The symbol to search for.
 
     Yields:
         Path: Files that might contain the struct definition.
@@ -99,4 +99,4 @@ def find_candidate_kernel_modules(module_root: Path, symbol_name: str) -> Genera
         Path: Files that might contain the struct definition.
 
     """
-    return _scan_files_priority([(module_root), "*.ko")], symbol_name)
+    return _scan_files_priority([(module_root, "*.ko")], symbol_name)

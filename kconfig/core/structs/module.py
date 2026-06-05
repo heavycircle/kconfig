@@ -1,20 +1,30 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from typing import TYPE_CHECKING
 
-from kconfig.utils import KconfigFileInvalidError, KconfigStruct
+from kconfig.core import parser, utils
+from kconfig.utils import (
+    CACHE_DIR,
+    KconfigStruct,
+    KconfigStructFields,
+    KconfigSubprocessFailedError,
+    KconfigSymbolNotFoundError,
+    ui,
+)
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def get_module_struct(ko_path: Path, struct_name: str) -> KconfigStruct:
+def get_module_struct(module_root: Path, struct_name: str) -> KconfigStructFields:
     """Get a struct's source from a kernel module.
 
     Args:
-        ko_path (Path): Path to the kernel module.
+        module_root (Path): Base kernel module directory.
         struct_name (str): Name of the structure.
 
     Returns:
@@ -24,9 +34,10 @@ def get_module_struct(ko_path: Path, struct_name: str) -> KconfigStruct:
     for file in utils.find_candidate_kernel_modules(module_root, struct_name):
         layout = get_module_layout(file)
         if struct_name in layout:
-            reurn layout[struct_name]
+            return layout[struct_name]
 
     raise KconfigSymbolNotFoundError(struct_name, module_root)
+
 
 def _build_module_cache(ko_path: Path) -> dict[str, KconfigStructFields]:
     """Build the cache of module structures."""

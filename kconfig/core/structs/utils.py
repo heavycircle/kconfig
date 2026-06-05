@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigCustomMembers, KconfigStructConfig, sanitize_kernel_macros
+from kconfig.utils import KconfigCustomMembers, KconfigStruct, KconfigStructConfig, sanitize_kernel_macros
 
 
 def get_struct_configs(struct: KconfigStruct) -> list[KconfigStructConfig]:

@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from tree_sitter import Node
 
-from kconfig.core import utils
 from .normalize import normalize_struct
+
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -21,6 +21,7 @@ KconfigQueryResult = list[tuple[int, KconfigQueryCapture]]
 
 KconfigStructFields = dict[str, str]
 """Fields inside a structure. Represented as { name: type }."""
+
 
 @dataclass
 class KconfigStructConfig:
@@ -75,42 +76,44 @@ class KconfigSignature:
 
 
 @dataclass
-class KconfigEvidence:
+class KconfigConfigEvidence:
     """Represent a single piece of evidence for a config state."""
-    
+
     struct_name: str
     field_name: str
     is_enabled: bool
-    
-    def __str__(self):
+
+    def __str__(self) -> str:
+        """Print the evidence for this config."""
         state = "ENABLED" if self.is_enabled else "DISABLED"
         verb = "Found" if self.is_enabled else "Missing"
         return f"[{state}] {verb} '{self.field_name}' in '{self.struct_name}'"
 
 
-class AnalysisReport:
+class KconfigAnalysis:
     """Aggregate all evidence and automatically flags conflicts."""
-    
-    def __init__(self):
-        self.log: dict[str, list[KconfigEvidence]] = defaultdict(list)
 
-    def add_evidence(self, config_name: str, evidence: KconfigEvidence):
+    def __init__(self) -> None:
+        self.log: dict[str, list[KconfigConfigEvidence]] = defaultdict(list)
+
+    def add_evidence(self, config_name: str, evidence: KconfigConfigEvidence) -> None:
+        """Add a config report to the log."""
         self.log[config_name].append(evidence)
 
     @property
-    def enabled_configs(self) -> dict[str, list[KconfigEvidence]]:
+    def enabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
         """Returns configs where ALL evidence points to True."""
         return {k: v for k, v in self.log.items() if all(e.is_enabled for e in v)}
 
     @property
-    def disabled_configs(self) -> dict[str, list[KconfigEvidence]]:
+    def disabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
         """Returns configs where ALL evidence points to False."""
         return {k: v for k, v in self.log.items() if all(not e.is_enabled for e in v)}
 
     @property
-    def conflicts(self) -> dict[str, list[KconfigEvidence]]:
+    def conflicts(self) -> dict[str, list[KconfigConfigEvidence]]:
         """Returns configs where evidence contradicts itself."""
-        results = {}
+        results: dict[str, list[KconfigConfigEvidence]] = {}
         for config, evidence_list in self.log.items():
             states = {e.is_enabled for e in evidence_list}
             if len(states) > 1:
