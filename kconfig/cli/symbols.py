@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
 from kconfig.core import symbols
-from kconfig.utils import ui
+from kconfig.utils import state, ui
 
 from .options import KernelOpt, SymbolOpt  # noqa: TC001
+
 
 app = typer.Typer()
 

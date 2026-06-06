@@ -13,11 +13,12 @@ from kconfig.utils import CACHE_DIR, ui
 
 app = typer.Typer()
 
+
 @app.command("list")
 def kernel_list() -> None:
     """List the available cached kernels."""
     kernel_dir = CACHE_DIR / "kernel"
-    versions = [p.name.replace("linux-","") for p in kernel_dir.glob("linux-*") if p.is_dir()]
+    versions = [p.name.replace("linux-", "") for p in kernel_dir.glob("linux-*") if p.is_dir()]
 
     def version_sort(v: str) -> list[int]:
         try:

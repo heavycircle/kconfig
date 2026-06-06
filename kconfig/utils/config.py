@@ -16,14 +16,14 @@ class KconfigState:
 
     def __init__(self) -> None:
         # Private backing variables
-        self._kernel_dir = Path
-        self._module_dir = Path
+        self._kernel_dir: Path
+        self._module_dir: Path
 
     def _check_kernel_dir(self, kernel_dir: Path) -> None:
         if not kernel_dir.exists():
-            raise KconfigInvalidArgumentError(version, "Missing kernel directory")
+            raise KconfigInvalidArgumentError(kernel_dir.name, "Missing kernel directory")
         if not kernel_dir.is_dir():
-            raise KconfigMissingArgumentError(version, "Not a directory")
+            raise KconfigInvalidArgumentError(kernel_dir.name, "Not a directory")
 
     @property
     def kernel_version(self) -> str | None:
@@ -43,6 +43,7 @@ class KconfigState:
 
     @property
     def kernel_dir(self) -> Path:
+        """Kernel directory."""
         return self._kernel_dir
 
     @kernel_dir.setter
@@ -61,7 +62,10 @@ class KconfigState:
         return self._module_dir
 
     @module_dir.setter
-    def module_dir(self, path: Path | str) -> None:
+    def module_dir(self, path: str | Path | None) -> None:
+        if not path:
+            raise KconfigMissingArgumentError("module_dir")
+
         p = Path(path).resolve()
         if not p.exists():
             raise KconfigInvalidArgumentError(p.name, "No such file or directory")

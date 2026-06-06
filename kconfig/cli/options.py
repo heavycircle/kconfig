@@ -4,6 +4,7 @@ from typing import Annotated
 
 from typer import Argument, Option
 
+
 KernelOpt = Annotated[
     str | None,
     Option("-k", "--kernel", help="Target kernel version (defaults to host kernel)."),

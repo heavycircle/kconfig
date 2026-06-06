@@ -3,9 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigStruct, KconfigSymbolNotFoundError, ui
-
-from .utils import get_custom_struct_members
+from kconfig.utils import KconfigStruct, KconfigStructField, KconfigSymbolNotFoundError, ui
 
 
 if TYPE_CHECKING:
@@ -36,7 +34,7 @@ def find_struct_declaration(kernel_root: Path, struct_name: str) -> tuple[Node, 
             if not struct_names:
                 continue
 
-            found_name = struct_names[0].text.decode()
+            found_name = struct_names[0].decode()
             if found_name == struct_name:
                 ui.out_debug(f"Found struct {struct_name} in {file} ...")
                 return captures["struct.name"][0].parent, file, found_name
@@ -49,11 +47,13 @@ def find_struct_declaration(kernel_root: Path, struct_name: str) -> tuple[Node, 
             if not alias_names:
                 continue
 
-            found_alias = alias_names[0].text.decode()
+            found_alias = alias_names[0].decode()
             if found_alias == struct_name:
                 true_name = utils.get_capture_text(captures, "alias.target")[0].decode()
                 ui.out_debug(f"Resolved alias: {struct_name} -> {true_name}")
                 return find_struct_declaration(kernel_root, true_name)
+
+    raise KconfigSymbolNotFoundError(struct_name, kernel_root)
 
 
 def get_kernel_struct(
@@ -89,7 +89,7 @@ def get_kernel_struct(
 
     node, path, name = find_struct_declaration(kernel_root, struct_name)
     struct_layout = KconfigStruct(name=name, file=path)
-    
+
     # Get the fields inside this struct
     captures = parser.run_node_query(node, "struct-fields")
     if "field.def" not in captures:
@@ -100,7 +100,7 @@ def get_kernel_struct(
     for i, field_node in enumerate(captures["field.def"]):
         name_node = captures["field.name"][i]
         field_name = name_node.text.decode()
-        field_type = captures["field_type"][i].text.decode()
+        field_type = captures["field.type"][i].text.decode()
         true_type = parser.get_true_type(name_node, field_type)
 
         config_chain = parser.get_enclosing_configs(field_node)
@@ -109,12 +109,18 @@ def get_kernel_struct(
 
     if recursive:
         ui.out_debug(f" >> Checking recursively: {struct_name}")
-        members = get_custom_struct_members(node)
+        members = parser.get_custom_members(node)
         for member in members.structs:
             ui.out_debug(f" >> {struct_name} has recursive member: {member}")
 
             try:
-                nested_struct = get_kernel_struct(kernel_root, member, recursive=True, visited=visited, status=status,)
+                nested_struct = get_kernel_struct(
+                    kernel_root,
+                    member,
+                    recursive=True,
+                    visited=visited,
+                    status=status,
+                )
                 if nested_struct:
                     struct_layout.nested.append(nested_struct)
             except KconfigSymbolNotFoundError as e:

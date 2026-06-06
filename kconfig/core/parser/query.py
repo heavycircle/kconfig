@@ -6,10 +6,17 @@ from typing import TYPE_CHECKING
 import tree_sitter
 import tree_sitter_c
 
-from kconfig.utils import KconfigFileInvalidError, KconfigFileNotFoundError, KconfigQueryCapture, KconfigQuerySyntaxError, ui
+from kconfig.utils import (
+    KconfigFileInvalidError,
+    KconfigFileNotFoundError,
+    KconfigQueryCapture,
+    KconfigQuerySyntaxError,
+)
 
 
 if TYPE_CHECKING:
+    from tree_sitter import Node
+
     from kconfig.utils import KconfigQueryResult
 
 
@@ -58,7 +65,7 @@ def get_query(name: str) -> tree_sitter.Query:
     try:
         query_str = query_path.read_text()
         query = tree_sitter.Query(TS_LANG, query_str)
-        
+
         TS_CACHE[name] = query
         return query
     except tree_sitter.QueryError as e:
@@ -81,18 +88,18 @@ def run_query(query: str, code: bytes) -> KconfigQueryResult:
     return cursor.matches(tree.root_node)
 
 
-def run_node_query(node: Node, query: str) -> KconfigQueryResult:
+def run_node_query(node: Node, query: str) -> KconfigQueryCapture:
     """Run a cached query against a pre-parsed AST node.
 
     Args:
-        file (Path): Path to the C file to query.
+        node (Node): Node to query.
         query (str): Tree-sitter (SCM) query.
 
     Raises:
         KconfigFileNotFoundError: Missing C file.
 
     Returns:
-        KconfigQueryResult: Resulting structure of the query.
+        KconfigQueryCapture: Resulting structure of the query.
 
     """
     cursor = tree_sitter.QueryCursor(get_query(query))

@@ -13,8 +13,10 @@ class KconfigError(Exception):
 
 # --- Argparse Errors ------------------------------------------
 
+
 class KconfigCLIError(KconfigError):
     """Base exception class for CLI option issues."""
+
 
 class KconfigInvalidArgumentError(KconfigCLIError):
     """Raised when the provided argument is impossible."""
@@ -22,11 +24,13 @@ class KconfigInvalidArgumentError(KconfigCLIError):
     def __init__(self, argument: str, reason: str) -> None:
         super().__init__(f"Invalid Argument: {argument}: {reason}")
 
+
 class KconfigMissingArgumentError(KconfigCLIError):
     """Raised when missing an 'optional' argument that's required in this case."""
 
     def __init__(self, argument: str) -> None:
         super().__init__(f"Missing Required Argument: {argument}")
+
 
 # --- File System Errors ---------------------------------------
 

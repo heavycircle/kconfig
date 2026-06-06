@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 
 from tree_sitter import Node
 
-from .normalize import normalize_struct
-
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,7 +37,7 @@ class KconfigStruct:
 
     name: str
     file: Path
-    
+
     fields: list[KconfigStructField] = field(default_factory=list)
     nested: list[KconfigStruct] = field(default_factory=list)
 

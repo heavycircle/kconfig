@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kconfig.utils import KconfigAnalysis, KconfigConfigEvidence, KconfigSymbolNotFoundError, ui
@@ -9,13 +8,17 @@ from .module import get_module_struct
 
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from kconfig.utils import KconfigStruct
 
 
-def analyze_struct_tree(root_struct: KconfigStruct, modules: Path, report: KconfigAnalysis | None = None) -> KconfigAnalysis:
+def analyze_struct_tree(
+    root_struct: KconfigStruct, modules: Path, report: KconfigAnalysis | None = None
+) -> KconfigAnalysis:
     """Analyze a structure tree for config options to enable."""
     if report is None:
-        ui.out_info(f"Running structure comparison ...")
+        ui.out_info("Running structure comparison ...")
         report = KconfigAnalysis()
 
     try:
