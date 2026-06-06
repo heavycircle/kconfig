@@ -107,7 +107,12 @@ class UserInterface:
 
     @property
     def raw(self) -> Console:
-        """Return the console itself."""
+        """Underlying Rich Console for direct output calls.
+
+        Returns:
+            Console: The Rich Console instance used by this interface.
+
+        """
         return self.console
 
 

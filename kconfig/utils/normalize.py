@@ -22,10 +22,10 @@ def normalize_struct(code: bytes) -> bytes:
     """Normalize the whitespace inside a structure.
 
     Args:
-      code (bytes): Structure source code.
+        code (bytes): Structure source code.
 
     Returns:
-      bytes: Normalized code.
+        bytes: Normalized code.
 
     """
     text = code.decode(errors="ignore")
@@ -47,10 +47,10 @@ def normalize_type(c_type: str) -> str:
     """Normalize C types for comparison.
 
     Args:
-      c_type (str): Type to compare.
+        c_type (str): Type to compare.
 
     Returns:
-      str: Normalized type.
+        str: Normalized type.
 
     """
     tokens = c_type.split()
@@ -62,10 +62,10 @@ def sanitize_kernel_macros(code: bytes) -> bytes:
     """Sanitize kernel macros that break the tree-sitter parser.
 
     Args:
-      code (bytes): Code to sanitize.
+        code (bytes): Code to sanitize.
 
     Returns:
-      bytes: Sanitized code.
+        bytes: Sanitized code.
 
     """
     text = code.decode(errors="ignore")

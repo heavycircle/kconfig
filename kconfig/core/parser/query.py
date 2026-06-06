@@ -76,8 +76,8 @@ def run_query(query: str, code: bytes) -> KconfigQueryResult:
     """Run a tree-sitter query on C code.
 
     Args:
-        query (str): Tree-sitter (SCM) query.
-        code (str): Code to query.
+        query (str): Tree-sitter (SCM) query name (without ``.scm`` extension).
+        code (bytes): C source code to query.
 
     Returns:
         KconfigQueryResult: Resulting structure of the query.
@@ -92,14 +92,15 @@ def run_node_query(node: Node, query: str) -> KconfigQueryCapture:
     """Run a cached query against a pre-parsed AST node.
 
     Args:
-        node (Node): Node to query.
-        query (str): Tree-sitter (SCM) query.
+        node (Node): Pre-parsed AST node to run the query against.
+        query (str): Tree-sitter (SCM) query name (without ``.scm`` extension).
 
     Raises:
-        KconfigFileNotFoundError: Missing C file.
+        KconfigFileNotFoundError: Query file does not exist.
+        KconfigQuerySyntaxError: Query file contains invalid SCM syntax.
 
     Returns:
-        KconfigQueryCapture: Resulting structure of the query.
+        KconfigQueryCapture: Flattened capture dict mapping capture names to node lists.
 
     """
     cursor = tree_sitter.QueryCursor(get_query(query))

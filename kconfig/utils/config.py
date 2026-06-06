@@ -27,7 +27,12 @@ class KconfigState:
 
     @property
     def kernel_version(self) -> str | None:
-        """Kernel version."""
+        """Kernel version string, or None if not yet set.
+
+        Returns:
+            str | None: The kernel version (e.g. ``6.1.0``), or ``None``.
+
+        """
         return self._kernel_version
 
     @kernel_version.setter
@@ -43,7 +48,12 @@ class KconfigState:
 
     @property
     def kernel_dir(self) -> Path:
-        """Kernel directory."""
+        """Resolved path to the unpacked kernel source directory.
+
+        Returns:
+            Path: Absolute path to the kernel source root.
+
+        """
         return self._kernel_dir
 
     @kernel_dir.setter
@@ -58,7 +68,12 @@ class KconfigState:
 
     @property
     def module_dir(self) -> Path:
-        """Directory containing reference kernel modules."""
+        """Resolved path to the directory containing reference kernel modules.
+
+        Returns:
+            Path: Absolute path to the kernel modules root.
+
+        """
         return self._module_dir
 
     @module_dir.setter

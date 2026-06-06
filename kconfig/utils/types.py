@@ -43,7 +43,12 @@ class KconfigStruct:
 
     @property
     def dependencies(self) -> int:
-        """Recursively count the struct's children."""
+        """Recursively count all nested struct dependencies.
+
+        Returns:
+            int: Total number of nested structs at all depths.
+
+        """
         count = len(self.nested)
         for child in self.nested:
             count += child.dependencies
@@ -80,7 +85,12 @@ class KconfigConfigEvidence:
     is_enabled: bool
 
     def __str__(self) -> str:
-        """Print the evidence for this config."""
+        """Return a human-readable string describing this evidence.
+
+        Returns:
+            str: Evidence description including struct name, field name, and state.
+
+        """
         verb = "Found" if self.is_enabled else "Missing"
         return f"{verb} '{self.field_name}' in '{self.struct_name}'"
 
@@ -92,22 +102,43 @@ class KconfigAnalysis:
         self.log: dict[str, list[KconfigConfigEvidence]] = defaultdict(list)
 
     def add_evidence(self, config_name: str, evidence: KconfigConfigEvidence) -> None:
-        """Add a config report to the log."""
+        """Add a config report to the log.
+
+        Args:
+            config_name (str): Name of the CONFIG option (e.g. ``CONFIG_FOO``).
+            evidence (KconfigConfigEvidence): Evidence entry to record.
+
+        """
         self.log[config_name].append(evidence)
 
     @property
     def enabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
-        """Returns configs where ALL evidence points to True."""
+        """Configs where ALL evidence points to True.
+
+        Returns:
+            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its evidence list.
+
+        """
         return {k: v for k, v in self.log.items() if all(e.is_enabled for e in v)}
 
     @property
     def disabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
-        """Returns configs where ALL evidence points to False."""
+        """Configs where ALL evidence points to False.
+
+        Returns:
+            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its evidence list.
+
+        """
         return {k: v for k, v in self.log.items() if all(not e.is_enabled for e in v)}
 
     @property
     def conflicts(self) -> dict[str, list[KconfigConfigEvidence]]:
-        """Returns configs where evidence contradicts itself."""
+        """Configs where evidence contradicts itself (mixed True/False).
+
+        Returns:
+            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its conflicting evidence list.
+
+        """
         results: dict[str, list[KconfigConfigEvidence]] = {}
         for config, evidence_list in self.log.items():
             states = {e.is_enabled for e in evidence_list}

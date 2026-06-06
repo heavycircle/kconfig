@@ -41,7 +41,7 @@ def struct_body(kernel: KernelOpt, symbol: SymbolOpt) -> None:
 
 @app.command("compare")
 def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False) -> None:
-    """Find a symbol inside the kernel."""
+    """Compare a kernel struct's layout against compiled module binaries."""
     state.kernel_version = kernel
     state.module_dir = modules
 

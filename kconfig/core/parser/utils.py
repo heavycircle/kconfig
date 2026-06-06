@@ -45,7 +45,19 @@ def get_enclosing_configs(node: Node) -> list[str]:
 
 
 def get_true_type(node: Node, base_type: str) -> str:
-    """Re-construct pointer and array types."""
+    """Re-construct the full C type by walking up the declarator chain.
+
+    Appends pointer (``*``), array (``[]``), and function-pointer (``()``)
+    modifiers to ``base_type`` based on the node's ancestor declarators.
+
+    Args:
+        node (Node): Declarator node whose ancestors are inspected.
+        base_type (str): The raw type name (e.g. ``"unsigned int"``).
+
+    Returns:
+        str: Full reconstructed type (e.g. ``"unsigned int *"``).
+
+    """
     modifiers: list[str] = []
 
     current = node.parent

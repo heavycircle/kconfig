@@ -89,14 +89,14 @@ def find_candidate_struct_files(kernel_root: Path, struct_name: str) -> Generato
 
 
 def find_candidate_kernel_modules(module_root: Path, symbol_name: str) -> Generator[Path]:
-    """Optimized search for struct definitions inside the kernel.
+    """Search for compiled kernel modules (``.ko``) that reference a symbol.
 
     Args:
-        module_root (Path): Path to the kernel modules root.
-        symbol_name (str): The symbol to search for.
+        module_root (Path): Root directory containing ``.ko`` module files.
+        symbol_name (str): Symbol name to search for within each module.
 
     Yields:
-        Path: Files that might contain the struct definition.
+        Path: ``.ko`` files whose binary content references ``symbol_name``.
 
     """
     return _scan_files_priority([(module_root, "*.ko")], symbol_name)

@@ -43,7 +43,7 @@ def get_capture_text(captures: KconfigQueryCapture, key: str) -> list[bytes]:
         key (str): Key to find.
 
     Returns:
-        list[bytes]: Retrieved node from result.
+        list[bytes]: Text payload of every node matching ``key``.
 
     """
     return [cast("bytes", n.text) for n in get_capture_nodes(captures, key)]

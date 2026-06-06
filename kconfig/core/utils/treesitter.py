@@ -107,11 +107,17 @@ def parse_field_declaration_list(node: Node) -> dict[str, str]:
 
 
 def get_struct_members(struct: KconfigStruct) -> dict[str, str]:
-    """Get the members of a structure."""
-    query = parser.get_query("struct-find").replace("__STRUCT_NAME__", struct.name)
+    """Parse a struct's compiled body and return all field names with their types.
 
+    Args:
+        struct (KconfigStruct): Struct whose ``body`` bytes will be queried.
+
+    Returns:
+        dict[str, str]: Mapping of field name to its C type string.
+
+    """
     module_fields: dict[str, str] = {}
-    for _, captures in parser.run_query(struct.body, query):
+    for _, captures in parser.run_query(struct.body, "struct-list"):
         nodes = get_capture_nodes(captures, "struct.body")
         if len(nodes) != 1:
             raise KconfigASTAnomalyError(struct.name, "More than one structure found")

@@ -28,7 +28,7 @@ def get_module_struct(module_root: Path, struct_name: str) -> KconfigStructField
         struct_name (str): Name of the structure.
 
     Returns:
-        list[str]: Items found in the structure.
+        KconfigStructFields: Field-to-type mapping for the requested structure.
 
     """
     for file in utils.find_candidate_kernel_modules(module_root, struct_name):
@@ -40,7 +40,15 @@ def get_module_struct(module_root: Path, struct_name: str) -> KconfigStructField
 
 
 def _build_module_cache(ko_path: Path) -> dict[str, KconfigStructFields]:
-    """Build the cache of module structures."""
+    """Build the struct layout cache for a compiled kernel module via ``pahole``.
+
+    Args:
+        ko_path (Path): Path to the ``.ko`` kernel object file.
+
+    Returns:
+        dict[str, KconfigStructFields]: Mapping of struct name to its field-to-type map.
+
+    """
     ui.out_debug(f"Building module cache for '{ko_path}' ...")
 
     cmd = ["pahole", str(ko_path)]
@@ -63,7 +71,15 @@ def _build_module_cache(ko_path: Path) -> dict[str, KconfigStructFields]:
 
 
 def get_module_layout(ko_path: Path) -> dict[str, KconfigStructFields]:
-    """Fetch module layout from disk cache, or build if stale/missing."""
+    """Return the struct layout for a module, using a disk cache keyed by file hash.
+
+    Args:
+        ko_path (Path): Path to the ``.ko`` kernel object file.
+
+    Returns:
+        dict[str, KconfigStructFields]: Mapping of struct name to its field-to-type map.
+
+    """
     module_dir = CACHE_DIR / "modules"
     module_dir.mkdir(parents=True, exist_ok=True)
 
@@ -87,7 +103,12 @@ def get_module_layout(ko_path: Path) -> dict[str, KconfigStructFields]:
 
 
 def get_module_capabilities(module_root: Path) -> None:
-    """Refresh the cache of module capabilities."""
+    """Refresh the on-disk layout cache for all ``.ko`` files under ``module_root``.
+
+    Args:
+        module_root (Path): Root directory to search for ``.ko`` kernel modules.
+
+    """
     total_files = sum(1 for f in module_root.rglob("*.ko") if f.is_file())
     ui.out_info(f"Refreshing the cache for {total_files} module ...")
 

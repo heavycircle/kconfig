@@ -21,10 +21,11 @@ def find_struct_declaration(kernel_root: Path, struct_name: str) -> tuple[Node, 
         struct_name (str): Name of the structure to find.
 
     Raises:
-        KconfigFileError: Missing C or Query (SCM) file.
+        KconfigSymbolNotFoundError: Struct not found in any candidate file.
 
     Returns:
-        KconfigStruct: Matching structure inside source file.
+        tuple[Node, Path, str]: The struct's AST node, the file it was found in,
+            and the resolved struct name (may differ when following typedef aliases).
 
     """
     for file in utils.find_candidate_struct_files(kernel_root, struct_name):
@@ -74,7 +75,8 @@ def get_kernel_struct(
         status (Status | None): Status output for the terminal.
 
     Returns:
-        KconfigStruct: Structure information, to include configuration options.
+        KconfigStruct | None: Structure information including fields and config guards,
+            or ``None`` if the struct was already visited (cycle detected).
 
     """
     if visited is None:

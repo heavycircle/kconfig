@@ -14,7 +14,13 @@ if TYPE_CHECKING:
 
 
 def print_struct_comparison(result: KconfigAnalysis) -> None:
-    """Render the comparison result to the terminal."""
+    """Render the struct comparison result as Rich tables to the terminal.
+
+    Args:
+        result (KconfigAnalysis): Aggregated analysis containing enabled, disabled,
+            and conflicting CONFIG evidence.
+
+    """
     config_table = Table(show_header=True, header_style="bold magenta")
     config_table.add_column("CONFIG Option")
     config_table.add_column("State", justify="center")
@@ -53,7 +59,13 @@ def print_struct_comparison(result: KconfigAnalysis) -> None:
 
 
 def print_kernel_versions(versions: list[str], kernel_dir: Path) -> None:
-    """Render the list of kernel versiosn."""
+    """Render the list of cached kernel versions as a Rich table to the terminal.
+
+    Args:
+        versions (list[str]): Sorted list of kernel version strings (e.g. ``["6.1.0", "5.15.0"]``).
+        kernel_dir (Path): Base directory where kernels are stored, used to display local paths.
+
+    """
     if not versions:
         ui.out_info("No kernels currently cached.")
         ui.out_info("Use 'kconfig kernel fetch <version>' to download one.")
