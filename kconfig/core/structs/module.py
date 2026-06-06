@@ -49,13 +49,13 @@ def _build_module_cache(ko_path: Path) -> dict[str, KconfigStructFields]:
         raise KconfigSubprocessFailedError("pahole", result.stderr.decode().strip())
 
     cache: dict[str, KconfigStructFields] = {}
-    for _, captures in parser.run_query(result.stdout, parser.get_query("struct-list")):
+    for _, captures in parser.run_query("struct-list", result.stdout):
         name_node = utils.get_capture_text(captures, "struct.name")
         def_node = utils.get_capture_text(captures, "struct.def")
         if not (name_node and def_node):
             continue
 
-        struct = KconfigStruct(name_node[0].decode(), def_node[0], ko_path)
+        struct = KconfigStruct(name_node[0].decode(), ko_path)
         fields = utils.get_struct_members(struct)
         cache[struct.name] = fields
 

@@ -2,23 +2,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
+
+from kconfig.utils import ui
 
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from kconfig.utils import KconfigAnalysis
 
-console = Console()
 
-
-def print_struct_comparison(struct_name: str, result: KconfigAnalysis) -> None:
+def print_struct_comparison(result: KconfigAnalysis) -> None:
     """Render the comparison result to the terminal."""
-    console.print(Panel(f"Analysis for [bold cyan]struct {struct_name}[/bold cyan]"))
-
-    config_table = Table(title="Resolved KConfig States", show_header=True, header_style="bold magenta")
-    config_table.add_column("CONFIG Flag")
+    config_table = Table(show_header=True, header_style="bold magenta")
+    config_table.add_column("CONFIG Option")
     config_table.add_column("State", justify="center")
     config_table.add_column("Primary Evidence")
     config_table.add_column("Matches", justify="center")
@@ -27,10 +25,11 @@ def print_struct_comparison(struct_name: str, result: KconfigAnalysis) -> None:
         config_table.add_row(cfg, "[bold green]ENABLED[/bold green]", str(matches[0]), str(len(matches)))
     for cfg, matches in result.disabled_configs.items():
         config_table.add_row(cfg, "[dim]DISABLED[/dim]", str(matches[0]), str(len(matches)))
-    console.print(config_table)
+
+    ui.raw.print(config_table)
 
     if result.conflicts:
-        console.print("")
+        ui.raw.print("")
 
         conflict_table = Table(
             title="[bold red]CONFLICTS DETECTED[/bold red]",
@@ -50,4 +49,19 @@ def print_struct_comparison(struct_name: str, result: KconfigAnalysis) -> None:
             combined_evidence = "\n".join(evidence_strings)
             conflict_table.add_row(cfg, combined_evidence)
 
-        console.print(conflict_table)
+        ui.raw.print(conflict_table)
+
+
+def print_kernel_versions(versions: list[str], kernel_dir: Path) -> None:
+    """Render the list of kernel versiosn."""
+    if not versions:
+        ui.out_info("No kernels currently cached.")
+        ui.out_info("Use 'kconfig kernel fetch <version>' to download one.")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table.add_column("Kernel Version", style="bold white")
+    table.add_column("Local Patch", style="dim")
+
+    for version in versions:
+        table.add_row(version, str(kernel_dir / f"linux-{version}"))

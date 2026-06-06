@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 
 from tree_sitter import Node
 
-from .normalize import normalize_struct
-
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -24,35 +22,32 @@ KconfigStructFields = dict[str, str]
 
 
 @dataclass
-class KconfigStructConfig:
-    """Class to represent CONFIG options and their fields."""
+class KconfigStructField:
+    """A field within a struct."""
 
-    name: str
-    fields: KconfigStructFields = field(default_factory=KconfigStructFields)
+    field_name: str
+    field_type: str
+
+    depends: list[str] = field(default_factory=list)
 
 
 @dataclass
 class KconfigStruct:
-    """Class to represent a found structure."""
+    """A structure found inside the kernel."""
 
     name: str
-    body: bytes
     file: Path
-    fields: KconfigStructFields = field(default_factory=KconfigStructFields)
-    configs: list[KconfigStructConfig] = field(default_factory=list)
-    nested_structs: list[KconfigStruct] = field(default_factory=list)
+
+    fields: list[KconfigStructField] = field(default_factory=list)
+    nested: list[KconfigStruct] = field(default_factory=list)
 
     @property
-    def nested_count(self) -> int:
+    def dependencies(self) -> int:
         """Recursively count the struct's children."""
-        count = len(self.nested_structs)
-        for child in self.nested_structs:
-            count += child.nested_count
+        count = len(self.nested)
+        for child in self.nested:
+            count += child.dependencies
         return count
-
-    def __post_init__(self) -> None:
-        """Normalize C code after instantiation."""
-        self.body = normalize_struct(self.body)
 
 
 @dataclass
@@ -72,6 +67,7 @@ class KconfigSignature:
     signature: str
     is_macro: bool
     file: Path
+
     members: KconfigCustomMembers = field(default_factory=KconfigCustomMembers)
 
 
@@ -85,9 +81,8 @@ class KconfigConfigEvidence:
 
     def __str__(self) -> str:
         """Print the evidence for this config."""
-        state = "ENABLED" if self.is_enabled else "DISABLED"
         verb = "Found" if self.is_enabled else "Missing"
-        return f"[{state}] {verb} '{self.field_name}' in '{self.struct_name}'"
+        return f"{verb} '{self.field_name}' in '{self.struct_name}'"
 
 
 class KconfigAnalysis:

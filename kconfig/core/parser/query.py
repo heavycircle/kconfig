@@ -6,11 +6,23 @@ from typing import TYPE_CHECKING
 import tree_sitter
 import tree_sitter_c
 
-from kconfig.utils import ui
+from kconfig.utils import (
+    KconfigFileInvalidError,
+    KconfigFileNotFoundError,
+    KconfigQueryCapture,
+    KconfigQuerySyntaxError,
+)
 
 
 if TYPE_CHECKING:
+    from tree_sitter import Node
+
     from kconfig.utils import KconfigQueryResult
+
+
+TS_LANG = tree_sitter.Language(tree_sitter_c.language())
+TS_PARSER = tree_sitter.Parser(TS_LANG)
+TS_CACHE: dict[str, tree_sitter.Query] = {}
 
 
 def _normalize_query_name(name: str) -> str:
@@ -23,23 +35,25 @@ def _normalize_query_name(name: str) -> str:
     return f"{name}.scm"
 
 
-def get_query(name: str) -> str:
-    """Get an SCM query from its file location.
+def get_query(name: str) -> tree_sitter.Query:
+    """Compile an SCM query from its file location.
 
-    This method is dependent on the path of THIS fiel. If this file changes
-    location, this function no longer works. There is not really another
-    way around this.
+    If this query has been compiled before, it returns from the cache.
 
     Args:
         name (str): Name of the query file.
 
     Raises:
         KconfigFileNotFoundError: Cannot find query file.
+        KconfigQuerySyntaxError: Invalid SCM syntax.
 
     Returns:
-        str: Text of the query.
+        Query: Compiled query object.
 
     """
+    if name in TS_CACHE:
+        return TS_CACHE[name]
+
     project_root = Path(__file__).parent.parent.parent.parent
     if not project_root.exists():
         raise KconfigFileNotFoundError(project_root)
@@ -48,50 +62,52 @@ def get_query(name: str) -> str:
     if not (query_path.exists() and query_path.is_file()):
         raise KconfigFileNotFoundError(query_path)
 
-    ui.out_debug(f"Found query file: {query_path.name}")
-    return query_path.read_text()
+    try:
+        query_str = query_path.read_text()
+        query = tree_sitter.Query(TS_LANG, query_str)
+
+        TS_CACHE[name] = query
+        return query
+    except tree_sitter.QueryError as e:
+        raise KconfigQuerySyntaxError(str(e)) from e
 
 
-def run_query(code: bytes, query: str) -> KconfigQueryResult:
+def run_query(query: str, code: bytes) -> KconfigQueryResult:
     """Run a tree-sitter query on C code.
 
     Args:
-        code (str): Code to query.
         query (str): Tree-sitter (SCM) query.
-
-    Raises:
-        KconfigQuerySyntaxError: Invalid formatted SCM query.
+        code (str): Code to query.
 
     Returns:
         KconfigQueryResult: Resulting structure of the query.
 
     """
-    c_lang = tree_sitter.Language(tree_sitter_c.language())
-    parser = tree_sitter.Parser(c_lang)
-
-    try:
-        tree = parser.parse(code)
-        query_obj = tree_sitter.Query(c_lang, query)
-        cursor = tree_sitter.QueryCursor(query_obj)
-        return cursor.matches(tree.root_node)
-    except tree_sitter.QueryError as e:
-        raise KconfigQuerySyntaxError(str(e)) from e
+    tree = TS_PARSER.parse(code)
+    cursor = tree_sitter.QueryCursor(get_query(query))
+    return cursor.matches(tree.root_node)
 
 
-def run_file_query(file: Path, query: str) -> KconfigQueryResult:
-    """Run a tree-sitter query on a C file.
+def run_node_query(node: Node, query: str) -> KconfigQueryCapture:
+    """Run a cached query against a pre-parsed AST node.
 
     Args:
-        file (Path): Path to the C file to query.
+        node (Node): Node to query.
         query (str): Tree-sitter (SCM) query.
 
     Raises:
         KconfigFileNotFoundError: Missing C file.
 
     Returns:
-        KconfigQueryResult: Resulting structure of the query.
+        KconfigQueryCapture: Resulting structure of the query.
 
     """
-    if not (file.exists() or file.is_file()):
-        raise KconfigFileNotFoundError(file)
-    return run_query(file.read_bytes(), query)
+    cursor = tree_sitter.QueryCursor(get_query(query))
+    captures = cursor.matches(node)
+
+    result: KconfigQueryCapture = {}
+    for _, matches in captures:
+        for name, nodes in matches.items():
+            result.setdefault(name, []).extend(nodes)
+
+    return result

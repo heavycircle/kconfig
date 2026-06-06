@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from .config import CACHE_DIR
+from .config import CACHE_DIR, state
 from .exceptions import (
     KconfigAnalysisError,
     KconfigASTAnomalyError,
+    KconfigCLIError,
     KconfigError,
     KconfigFileError,
     KconfigFileInvalidError,
     KconfigFileNotFoundError,
-    KconfigLayoutMismatchError,
+    KconfigInvalidArgumentError,
+    KconfigMissingArgumentError,
     KconfigQueryError,
     KconfigQuerySyntaxError,
     KconfigSubprocessFailedError,
@@ -27,7 +29,7 @@ from .types import (
     KconfigQueryResult,
     KconfigSignature,
     KconfigStruct,
-    KconfigStructConfig,
+    KconfigStructField,
     KconfigStructFields,
 )
 
@@ -37,20 +39,22 @@ __all__ = [
     "KconfigASTAnomalyError",
     "KconfigAnalysis",
     "KconfigAnalysisError",
+    "KconfigCLIError",
     "KconfigConfigEvidence",
     "KconfigCustomMembers",
     "KconfigError",
     "KconfigFileError",
     "KconfigFileInvalidError",
     "KconfigFileNotFoundError",
-    "KconfigLayoutMismatchError",
+    "KconfigInvalidArgumentError",
+    "KconfigMissingArgumentError",
     "KconfigQueryCapture",
     "KconfigQueryError",
     "KconfigQueryResult",
     "KconfigQuerySyntaxError",
     "KconfigSignature",
     "KconfigStruct",
-    "KconfigStructConfig",
+    "KconfigStructField",
     "KconfigStructFields",
     "KconfigSubprocessFailedError",
     "KconfigSymbolAliasedError",
@@ -62,5 +66,6 @@ __all__ = [
     "normalize_struct",
     "normalize_type",
     "sanitize_kernel_macros",
+    "state",
     "ui",
 ]
