@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigSignature, KconfigSymbolNotFoundError, ui
+from kconfig.utils import KconfigSignature, KconfigSymbolNotFoundError, state, ui
 
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
                 continue
 
             ui.out_debug(f"Found {'macro' if is_macro else 'function'} {symbol_name} in {file} ...")
-            signature_layout = KconfigSignature(symbol_name, signature.decode().strip(), is_macro=is_macro, file=file)
+            signature_layout = KconfigSignature(symbol_name, signature.decode().strip(), is_macro=is_macro, file=file.relative_to(state.kernel_dir))
             signature_layout.members = parser.get_custom_members(node)
             return signature_layout
 
