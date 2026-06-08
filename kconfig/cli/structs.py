@@ -4,7 +4,9 @@ import typer
 from rich.syntax import Syntax
 
 from kconfig.core import structs, utils
-from kconfig.utils import KconfigSymbolNotFoundError, state, ui
+from kconfig.core_api import get_kernel_struct
+from kconfig.styling_api import render_call, render_struct, ui
+from kconfig.utils import KconfigSymbolNotFoundError, state
 
 from .options import KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
 
@@ -17,26 +19,38 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
     """Find a symbol inside the kernel."""
     state.kernel_version = kernel
 
-    with ui.raw.status(f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...") as status:
-        kernel_struct = structs.get_kernel_struct(state.kernel_dir, symbol, recursive=recursive, status=status)
-        if not kernel_struct:
-            raise KconfigSymbolNotFoundError(symbol, state.kernel_version or "Unknown")
+    struct = render_call(
+        get_kernel_struct,
+        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
+        state.kernel_dir,
+        symbol,
+        recursive=recursive,
+    )
+    if not struct:
+        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
 
-        ui.out_info(kernel_struct)
-        if recursive:
-            ui.out_info(f"Found {kernel_struct.dependencies} dependencies!")
+    ui.raw.print(render_struct(struct))
+    if recursive:
+        ui.out_info(f"Found {kernel_struct.dependencies} dependencies!")
 
 
 @app.command("body")
-def struct_body(kernel: KernelOpt, symbol: SymbolOpt) -> None:
+def struct_body(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False) -> None:
     """Get the body of a structure from the kernel."""
     state.kernel_version = kernel
 
-    kernel_struct = structs.get_kernel_struct(state.kernel_dir, symbol)
-    if not kernel_struct:
-        raise KconfigSymbolNotFoundError(symbol, state.kernel_version or "Unknown")
+    struct = render_call(
+        get_kernel_struct,
+        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
+        state.kernel_dir,
+        symbol,
+        recursive=recursive,
+    )
+    if not struct:
+        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
 
-    ui.raw.print(Syntax(kernel_struct.body.decode(), "c", theme="ansi_dark", line_numbers=True))
+    # Print output
+    ui.raw.print(render_struct(struct))
 
 
 @app.command("compare")
@@ -45,10 +59,15 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
     state.kernel_version = kernel
     state.module_dir = modules
 
-    with ui.raw.status(f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...") as status:
-        kernel_struct = structs.get_kernel_struct(state.kernel_dir, symbol, recursive=recursive, status=status)
-        if not kernel_struct:
-            raise KconfigSymbolNotFoundError(symbol, state.kernel_version or "Unknown")
+    kernel_struct = render_call(
+        get_kernel_struct,
+        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
+        state.kernel_dir,
+        symbol,
+        recursive=recursive,
+    )
+    if not kernel_struct:
+        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
 
     structs.get_module_capabilities(state.module_dir)
     report = structs.analyze_struct_tree(kernel_struct, state.module_dir)
