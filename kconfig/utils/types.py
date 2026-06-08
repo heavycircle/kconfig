@@ -63,6 +63,11 @@ class KconfigCustomMembers:
     unions: set[str] = field(default_factory=set)
     typedefs: set[str] = field(default_factory=set)
 
+    @property
+    def is_empty(self) -> bool:
+        """Check if there are no custom members."""
+        return not (self.structs or self.unions or self.typedefs)
+
 
 @dataclass
 class KconfigSignature:
