@@ -6,13 +6,13 @@ import subprocess
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
+from kconfig.styling_api import ui
 from kconfig.utils import (
     CACHE_DIR,
     KconfigStruct,
     KconfigStructFields,
     KconfigSubprocessFailedError,
     KconfigSymbolNotFoundError,
-    ui,
 )
 
 

@@ -1,53 +1,59 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
+
+from rich.console import Group, RenderableType
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.text import Text
+from rich.tree import Tree
 
 from .logging import ui
 
-from rich.console import Group
-from rich.panel import Panel
-from rich.text import Text
-from rich.tree import Tree
-from rich.syntax import Syntax
 
 if TYPE_CHECKING:
-  from collections.abc import Callable
-  from rich.console import RenderableType
-  from kconfig.utils import KconfigSignature, KconfigStruct
+    from collections.abc import Callable
+
+    from kconfig.utils import KconfigSignature, KconfigStruct
 
 P = ParamSpec("P")
 T = TypeVar("T")
 
+
 def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.kwargs) -> T:
-  """Wrap a function call with a rich status spinner."""
-  with ui.raw.status(message) as status:
-    kwargs['status'] = status
-    return func(*args, **kwargs)
+    """Wrap a function call with a rich status spinner."""
+    with ui.raw.status(message) as status:
+        kwargs["status"] = status
+        return func(*args, **kwargs)
+
 
 def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
-  """Print a structure tree."""
-  title = f"[bold cyan]struct {struct.name}[/] [dim]({struct.file})[/]"
-  tree = parent.add(title) if parent else Tree(f"Layout: {title}")
+    """Print a structure tree."""
+    title = f"[bold cyan]struct {struct.name}[/] [dim]({struct.file})[/]"
+    tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
-  for field in struct.fields:
-    text = f"[green]{field.field_type}[/] [white]{field.field_name}[/]"
-    if field.depends:
-      configs = " & ".join(field.depends)
-      text += f"[dim italic yellow] (Requires: {configs})[/]"
+    for field in struct.fields:
+        text = f"[green]{field.field_type}[/] [white]{field.field_name}[/]"
+        if field.depends:
+            configs = " & ".join(field.depends)
+            text += f"[dim italic yellow] (Requires: {configs})[/]"
 
-    tree.add(text)
+        tree.add(text)
 
-  for nested in struct.nested:
-    render_struct(nested, tree)
+    for nested in struct.nested:
+        render_struct(nested, tree)
 
-  ui.raw.print(tree)
+    ui.raw.print(tree)
+
 
 def render_signature(sig: KconfigSignature) -> None:
     """Print a signature."""
     syntax_block = Syntax(sig.signature, "c", theme="ansi_dark", background_color="default")
-    renderables = [syntax_block]
-    
+    renderables: list[RenderableType] = [syntax_block]
+
     if not sig.members.is_empty:
         renderables.append(Text("\n--- Detected Type Dependencies ---", style="dim"))
-        
+
         if sig.members.structs:
             struct_str = ", ".join(sig.members.structs)
             renderables.append(Text.from_markup(f"[cyan]Structs:[/cyan]  {struct_str}"))
@@ -62,7 +68,7 @@ def render_signature(sig: KconfigSignature) -> None:
     panel = Panel(
         Group(*renderables),
         title=f"[bold cyan]{type_label}: {sig.name}[/]",
-        subtitle=f"[dim]Source: {str(sig.file)}[/]",
-        border_style="cyan"
+        subtitle=f"[dim]Source: {sig.file!s}[/]",
+        border_style="cyan",
     )
     ui.raw.print(panel)

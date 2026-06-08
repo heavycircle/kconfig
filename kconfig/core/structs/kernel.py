@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigStruct, KconfigStructField, KconfigSymbolNotFoundError, state, ui
+from kconfig.styling_api import ui
+from kconfig.utils import KconfigStruct, KconfigStructField, KconfigSymbolNotFoundError, state
 
 
 if TYPE_CHECKING:

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import typer
-from rich.syntax import Syntax
 
+from kconfig.control_api import get_kernel_struct
 from kconfig.core import structs, utils
-from kconfig.core_api import get_kernel_struct
-from kconfig.styling_api import render_call, render_struct, ui
+from kconfig.styling_api import render_call, render_struct, render_struct_comparison_table, ui
 from kconfig.utils import KconfigSymbolNotFoundError, state
 
 from .options import KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
@@ -27,11 +26,11 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
         recursive=recursive,
     )
     if not struct:
-        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
+        raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
-    ui.raw.print(render_struct(struct))
+    render_struct(struct)
     if recursive:
-        ui.out_info(f"Found {kernel_struct.dependencies} dependencies!")
+        ui.out_info(f"Found {struct.dependencies} dependencies!")
 
 
 @app.command("body")
@@ -47,10 +46,10 @@ def struct_body(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
         recursive=recursive,
     )
     if not struct:
-        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
+        raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
     # Print output
-    ui.raw.print(render_struct(struct))
+    render_struct(struct)
 
 
 @app.command("compare")
@@ -67,8 +66,8 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
         recursive=recursive,
     )
     if not kernel_struct:
-        raise KconfigSymbolNotFound(state.kernel_version or "Unknown", symbol)
+        raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
     structs.get_module_capabilities(state.module_dir)
     report = structs.analyze_struct_tree(kernel_struct, state.module_dir)
-    utils.print_struct_comparison(report)
+    render_struct_comparison_table(report)

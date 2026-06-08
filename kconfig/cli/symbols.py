@@ -3,7 +3,8 @@ from __future__ import annotations
 import typer
 
 from kconfig.core import symbols
-from kconfig.utils import state, ui
+from kconfig.styling_api import ui
+from kconfig.utils import state
 
 from .options import KernelOpt, SymbolOpt  # noqa: TC001
 

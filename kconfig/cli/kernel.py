@@ -7,8 +7,8 @@ import requests
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
 
-from kconfig.core import utils
-from kconfig.utils import CACHE_DIR, ui
+from kconfig.styling_api import render_kernel_version_table, ui
+from kconfig.utils import CACHE_DIR
 
 
 app = typer.Typer()
@@ -26,7 +26,7 @@ def kernel_list() -> None:
         except ValueError:
             return [0]
 
-    utils.print_kernel_versions(sorted(versions, key=version_sort, reverse=True), kernel_dir)
+    render_kernel_version_table(sorted(versions, key=version_sort, reverse=True), kernel_dir)
 
 
 @app.command("fetch")

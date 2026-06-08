@@ -4,7 +4,8 @@ import sys
 
 import typer
 
-from kconfig.utils import KconfigError, ui
+from kconfig.styling_api import ui
+from kconfig.utils import KconfigError
 
 from . import config, kernel, structs, symbols
 

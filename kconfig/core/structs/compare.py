@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.utils import KconfigAnalysis, KconfigConfigEvidence, KconfigSymbolNotFoundError, ui
+from kconfig.styling_api import ui
+from kconfig.utils import KconfigAnalysis, KconfigConfigEvidence, KconfigSymbolNotFoundError
 
 from .module import get_module_struct
 
