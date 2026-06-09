@@ -6,18 +6,13 @@ from typing import TYPE_CHECKING
 import tree_sitter
 import tree_sitter_c
 
-from kconfig.utils import (
-    KconfigFileInvalidError,
-    KconfigFileNotFoundError,
-    KconfigQueryCapture,
-    KconfigQuerySyntaxError,
-)
+from kconfig.exceptions import KconfigFileInvalidError, KconfigFileNotFoundError, KconfigQuerySyntaxError
 
 
 if TYPE_CHECKING:
     from tree_sitter import Node
 
-    from kconfig.utils import KconfigQueryResult
+    from kconfig.types import KconfigQueryCapture, KconfigQueryResult
 
 
 TS_LANG = tree_sitter.Language(tree_sitter_c.language())

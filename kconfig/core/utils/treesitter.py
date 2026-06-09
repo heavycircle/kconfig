@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser
-from kconfig.utils import KconfigASTAnomalyError, KconfigStructFields
+from kconfig.exceptions import KconfigASTAnomalyError
+from kconfig.types import KconfigStructFields
 
 from .nodes import get_capture_nodes
 
@@ -11,11 +12,19 @@ from .nodes import get_capture_nodes
 if TYPE_CHECKING:
     from tree_sitter import Node
 
-    from kconfig.utils import KconfigStruct
+    from kconfig.types import KconfigStruct
 
 
 def _extract_field_name(node: Node) -> str:
-    """Find field_identifier recursively within a declarator node."""
+    """Find field_identifier recursively within a declarator node.
+
+    Args:
+        node (Node): Root declarator node to search.
+
+    Returns:
+        str: The decoded field name, or an empty string if none is found.
+
+    """
     nodes_to_check = [node]
     while nodes_to_check:
         current = nodes_to_check.pop(0)
@@ -27,7 +36,17 @@ def _extract_field_name(node: Node) -> str:
 
 
 def _get_anonymous_type(node: Node) -> KconfigStructFields:
-    """Flatten an anonymous struct or union into a type dictionary."""
+    """Flatten an anonymous struct or union into a type dictionary.
+
+    Args:
+        node (Node): ``struct_specifier`` or ``union_specifier`` node whose
+            body contains the anonymous member declarations.
+
+    Returns:
+        KconfigStructFields: Mapping of ``{field_name: c_type}`` for all
+            fields found in the anonymous body.
+
+    """
     result = KconfigStructFields()
 
     body_node = node.child_by_field_name("body")

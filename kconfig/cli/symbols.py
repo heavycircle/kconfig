@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import typer
 
-from kconfig.core import symbols
-from kconfig.utils import state, ui
+from kconfig.control_api import get_function_signature, state
+from kconfig.styling_api import ui
 
 from .options import KernelOpt, SymbolOpt  # noqa: TC001
 
@@ -17,5 +17,5 @@ def symbol_find(kernel: KernelOpt, symbol: SymbolOpt) -> None:
     state.kernel_version = kernel
 
     ui.out_info(f"Finding symbol: {symbol}")
-    signature = symbols.get_function_signature(state.kernel_dir, symbol)
+    signature = get_function_signature(state.kernel_dir, symbol)
     ui.out_info(f"Signature: {signature}")

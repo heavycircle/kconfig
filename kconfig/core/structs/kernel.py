@@ -3,7 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
-from kconfig.utils import KconfigStruct, KconfigStructField, KconfigSymbolNotFoundError, ui
+from kconfig.core.config import state
+from kconfig.exceptions import KconfigSymbolNotFoundError
+from kconfig.styling_api import ui
+from kconfig.types import KconfigStruct, KconfigStructField
 
 
 if TYPE_CHECKING:
@@ -90,7 +93,7 @@ def get_kernel_struct(
         status.update(f"Parsed {len(visited)} structs ... (Analyzing: [bold cyan]{struct_name}[/bold cyan])")
 
     node, path, name = find_struct_declaration(kernel_root, struct_name)
-    struct_layout = KconfigStruct(name=name, file=path)
+    struct_layout = KconfigStruct(name=name, file=path.relative_to(state.kernel_dir))
 
     # Get the fields inside this struct
     captures = parser.run_node_query(node, "struct-fields")
@@ -100,6 +103,9 @@ def get_kernel_struct(
 
     # Check for fields enclosing configs
     for i, field_node in enumerate(captures["field.def"]):
+        if not parser.is_direct_member(field_node, node):
+            continue
+
         name_node = captures["field.name"][i]
         field_name = name_node.text.decode()
         field_type = captures["field.type"][i].text.decode()

@@ -4,16 +4,16 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table
 
-from kconfig.utils import ui
+from .logging import ui
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.utils import KconfigAnalysis
+    from kconfig.types import KconfigAnalysis
 
 
-def print_struct_comparison(result: KconfigAnalysis) -> None:
+def render_struct_comparison_table(result: KconfigAnalysis) -> None:
     """Render the struct comparison result as Rich tables to the terminal.
 
     Args:
@@ -58,7 +58,7 @@ def print_struct_comparison(result: KconfigAnalysis) -> None:
         ui.raw.print(conflict_table)
 
 
-def print_kernel_versions(versions: list[str], kernel_dir: Path) -> None:
+def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
     """Render the list of cached kernel versions as a Rich table to the terminal.
 
     Args:

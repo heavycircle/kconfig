@@ -4,7 +4,8 @@ import re
 from typing import TYPE_CHECKING
 
 from kconfig.core import utils
-from kconfig.utils import KconfigASTAnomalyError, KconfigCustomMembers
+from kconfig.exceptions import KconfigASTAnomalyError
+from kconfig.types import KconfigCustomMembers
 
 from .query import run_node_query
 
@@ -99,3 +100,14 @@ def get_custom_members(source: Node) -> KconfigCustomMembers:
 
     typedefs = typedefs - structs - unions
     return KconfigCustomMembers(structs, unions, typedefs)
+
+
+def is_direct_member(field_node: Node, root_node: Node) -> bool:
+    """Ensures the field belongs directly to the root struct, not a nested inline one."""
+    current = field_node.parent
+    while current is not None:
+        if current.type in ("struct_specifier", "union_specifier"):
+            return current == root_node
+        current = current.parent
+
+    return False
