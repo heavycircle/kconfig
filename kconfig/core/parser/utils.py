@@ -45,7 +45,7 @@ def get_enclosing_configs(node: Node) -> list[str]:
     return configs
 
 
-def get_true_type(node: Node, base_type: str) -> str:
+def get_true_type(type_node: Node, field_identifier: Node) -> str:
     """Re-construct the full C type by walking up the declarator chain.
 
     Appends pointer (``*``), array (``[]``), and function-pointer (``()``)
@@ -59,9 +59,10 @@ def get_true_type(node: Node, base_type: str) -> str:
         str: Full reconstructed type (e.g. ``"unsigned int *"``).
 
     """
+    base_type = type_node.text.decode()
+    
     modifiers: list[str] = []
-
-    current = node.parent
+    current = field_identifier.parent
     while current is not None:
         if current.type == "field_declaration":
             break
@@ -111,3 +112,34 @@ def is_direct_member(field_node: Node, root_node: Node) -> bool:
         current = current.parent
 
     return False
+
+
+def is_primitive_type(field_node: Node) -> bool:
+    """Check if a field_node is a primitive type."""
+    return field_node.type not in ("primitive_type", "sized_type_specifier")
+
+
+def get_field_identifier(field_node: Node) -> Node | None:
+    """Get the field_identifier from a field node."""
+    to_check = [field_node]
+    while to_check:
+        current = to_check.pop(0)
+        if current.type == "field_identifier" and current.text:
+            return current
+
+        to_check.extend(current.children)
+
+    return None
+
+
+def get_type_identifier(field_node: Node) -> Node | None:
+    """Get the type_identifier from a field node."""
+    to_check = [field_node]
+    while to_check:
+        current = to_check.pop(0)
+        if current.type == "type_identifier" and current.text:
+            return current
+
+        to_check.extend(current.children)
+
+    return None
