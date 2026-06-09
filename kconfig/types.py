@@ -22,11 +22,23 @@ KconfigStructFields = dict[str, str]
 
 
 @dataclass
+class KconfigFieldType:
+    original_type: str
+    resolved_type: str | None = None
+
+    layout: KconfigStruct | None = None
+
+    @property
+    def is_complex(self) -> bool:
+        """Check if this field type is anonymous/inline."""
+        return self.layout is not None
+
+@dataclass
 class KconfigStructField:
     """A field within a struct."""
 
     field_name: str
-    field_type: str
+    field_type: KconfigFieldType
 
     depends: list[str] = field(default_factory=list)
 
