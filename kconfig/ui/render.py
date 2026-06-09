@@ -51,16 +51,20 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
             child. If ``None`` a new root tree is created and printed.
 
     """
-    title = f"[bold cyan]struct {struct.name}[/] [dim]({struct.file})[/]"
+    title = f"[bold cyan]{struct.name}[/] [dim]({struct.file})[/]"
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
     for field in struct.fields:
-        text = f"[green]{field.field_type}[/] [white]{field.field_name}[/]"
+        text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
         if field.depends:
             configs = " & ".join(field.depends)
             text += f"[dim italic yellow] (Requires: {configs})[/]"
 
-        tree.add(text)
+        if field.field_type.layout:
+            field_node = tree.add(field_text)
+            render_struct(field.field_type.layout, parent=field_node)
+        else:
+            tree.add(text)
 
     for nested in struct.nested:
         render_struct(nested, tree)
