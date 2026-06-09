@@ -17,13 +17,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
     """Find a symbol inside the kernel."""
     state.kernel_version = kernel
 
-    struct = render_call(
-        get_kernel_struct,
-        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
-        state.kernel_dir,
-        symbol,
-        recursive=recursive,
-    )
+    struct = get_kernel_struct(symbol, recursive=recursive)
     if not struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
@@ -37,13 +31,7 @@ def struct_body(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
     """Get the body of a structure from the kernel."""
     state.kernel_version = kernel
 
-    struct = render_call(
-        get_kernel_struct,
-        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
-        state.kernel_dir,
-        symbol,
-        recursive=recursive,
-    )
+    struct = get_kernel_struct(symbol, recursive=recursive)
     if not struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
@@ -57,13 +45,7 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
     state.kernel_version = kernel
     state.module_dir = modules
 
-    kernel_struct = render_call(
-        get_kernel_struct,
-        f"Starting{' recursive ' if recursive else ' '}extraction for {symbol} ...",
-        state.kernel_dir,
-        symbol,
-        recursive=recursive,
-    )
+    kernel_struct = get_kernel_struct(symbol, recursive=recursive)
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
