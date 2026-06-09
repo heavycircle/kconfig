@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from kconfig.utils import KconfigASTAnomalyError
+from kconfig.exceptions import KconfigASTAnomalyError
 
 
 if TYPE_CHECKING:
     from tree_sitter import Node
 
-    from kconfig.utils import KconfigQueryCapture
+    from kconfig.types import KconfigQueryCapture
 
 
 def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:

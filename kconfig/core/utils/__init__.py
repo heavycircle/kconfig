@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from .fs import find_candidate_function_files, find_candidate_kernel_modules, find_candidate_struct_files
 from .nodes import get_capture_nodes, get_capture_text, get_node_text
-from .tables import print_kernel_versions, print_struct_comparison
 from .treesitter import get_struct_members, parse_field_declaration, parse_field_declaration_list
 
 
@@ -16,6 +15,4 @@ __all__ = [
     "get_struct_members",
     "parse_field_declaration",
     "parse_field_declaration_list",
-    "print_kernel_versions",
-    "print_struct_comparison",
 ]

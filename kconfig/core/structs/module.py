@@ -6,14 +6,10 @@ import subprocess
 from typing import TYPE_CHECKING
 
 from kconfig.core import parser, utils
+from kconfig.core.config import CACHE_DIR
+from kconfig.exceptions import KconfigSubprocessFailedError, KconfigSymbolNotFoundError
 from kconfig.styling_api import ui
-from kconfig.utils import (
-    CACHE_DIR,
-    KconfigStruct,
-    KconfigStructFields,
-    KconfigSubprocessFailedError,
-    KconfigSymbolNotFoundError,
-)
+from kconfig.types import KconfigStruct, KconfigStructFields
 
 
 if TYPE_CHECKING:

@@ -14,21 +14,43 @@ from .logging import ui
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from kconfig.utils import KconfigSignature, KconfigStruct
+    from kconfig.types import KconfigSignature, KconfigStruct
 
 P = ParamSpec("P")
 T = TypeVar("T")
 
 
 def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.kwargs) -> T:
-    """Wrap a function call with a rich status spinner."""
+    """Wrap a function call with a rich status spinner.
+
+    Args:
+        func (Callable[P, T]): Function to call.
+        message (str): Status message displayed in the spinner while the function runs.
+        *args (P.args): Positional arguments forwarded to ``func``.
+        **kwargs (P.kwargs): Keyword arguments forwarded to ``func``. A ``status`` key is
+            injected automatically with the active ``Status`` object.
+
+    Returns:
+        T: The return value of ``func``.
+
+    """
     with ui.raw.status(message) as status:
         kwargs["status"] = status
         return func(*args, **kwargs)
 
 
 def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
-    """Print a structure tree."""
+    """Print a structure tree to the console.
+
+    Recursively renders nested structs as sub-branches. When ``parent`` is
+    provided the struct is added as a child branch instead of a new root tree.
+
+    Args:
+        struct (KconfigStruct): Struct to render.
+        parent (Tree | None): Existing Rich ``Tree`` node to attach to as a
+            child. If ``None`` a new root tree is created and printed.
+
+    """
     title = f"[bold cyan]struct {struct.name}[/] [dim]({struct.file})[/]"
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
@@ -47,7 +69,15 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
 
 
 def render_signature(sig: KconfigSignature) -> None:
-    """Print a signature."""
+    """Print a function or macro signature inside a Rich panel.
+
+    Displays the C source signature with syntax highlighting and, when present,
+    a list of detected type dependencies (structs, unions, typedefs).
+
+    Args:
+        sig (KconfigSignature): Signature object to render.
+
+    """
     syntax_block = Syntax(sig.signature, "c", theme="ansi_dark", background_color="default")
     renderables: list[RenderableType] = [syntax_block]
 

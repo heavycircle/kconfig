@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import ui
-from kconfig.utils import KconfigAnalysis, KconfigConfigEvidence, KconfigSymbolNotFoundError
+from kconfig.types import KconfigAnalysis, KconfigConfigEvidence
 
 from .module import get_module_struct
 
@@ -11,7 +12,7 @@ from .module import get_module_struct
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.utils import KconfigStruct
+    from kconfig.types import KconfigStruct
 
 
 def analyze_struct_tree(

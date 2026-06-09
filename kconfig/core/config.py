@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .exceptions import KconfigInvalidArgumentError, KconfigMissingArgumentError
+from kconfig.exceptions import KconfigInvalidArgumentError, KconfigMissingArgumentError
 
 
 CACHE_DIR = Path.home() / ".cache" / "kconfig"

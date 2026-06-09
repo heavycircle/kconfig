@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table
 
-from kconfig.styling_api import ui
+from .logging import ui
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.utils import KconfigAnalysis
+    from kconfig.types import KconfigAnalysis
 
 
 def render_struct_comparison_table(result: KconfigAnalysis) -> None:

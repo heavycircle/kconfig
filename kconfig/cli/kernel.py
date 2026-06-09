@@ -7,8 +7,8 @@ import requests
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
 
+from kconfig.control_api import CACHE_DIR
 from kconfig.styling_api import render_kernel_version_table, ui
-from kconfig.utils import CACHE_DIR
 
 
 app = typer.Typer()

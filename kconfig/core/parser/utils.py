@@ -4,7 +4,8 @@ import re
 from typing import TYPE_CHECKING
 
 from kconfig.core import utils
-from kconfig.utils import KconfigASTAnomalyError, KconfigCustomMembers
+from kconfig.exceptions import KconfigASTAnomalyError
+from kconfig.types import KconfigCustomMembers
 
 from .query import run_node_query
 

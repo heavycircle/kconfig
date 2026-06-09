@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import typer
 
-from kconfig.control_api import get_kernel_struct
-from kconfig.core import structs, utils
+from kconfig.control_api import analyze_struct_tree, get_kernel_struct, get_module_capabilities, state
+from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import render_call, render_struct, render_struct_comparison_table, ui
-from kconfig.utils import KconfigSymbolNotFoundError, state
 
 from .options import KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
 
@@ -68,6 +67,6 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
-    structs.get_module_capabilities(state.module_dir)
-    report = structs.analyze_struct_tree(kernel_struct, state.module_dir)
+    get_module_capabilities(state.module_dir)
+    report = analyze_struct_tree(kernel_struct, state.module_dir)
     render_struct_comparison_table(report)
