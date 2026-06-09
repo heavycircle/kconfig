@@ -100,3 +100,14 @@ def get_custom_members(source: Node) -> KconfigCustomMembers:
 
     typedefs = typedefs - structs - unions
     return KconfigCustomMembers(structs, unions, typedefs)
+
+
+def is_direct_member(field_node: Node, root_node: Node) -> bool:
+    """Ensures the field belongs directly to the root struct, not a nested inline one."""
+    current = field_node.parent
+    while current is not None:
+        if current.type in ("struct_specifier", "union_specifier"):
+            return current == root_node
+        current = current.parent
+
+    return False

@@ -103,6 +103,9 @@ def get_kernel_struct(
 
     # Check for fields enclosing configs
     for i, field_node in enumerate(captures["field.def"]):
+        if not parser.is_direct_member(field_node, node):
+            continue
+
         name_node = captures["field.name"][i]
         field_name = name_node.text.decode()
         field_type = captures["field.type"][i].text.decode()
