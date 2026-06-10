@@ -39,7 +39,7 @@ def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.k
         return func(*args, **kwargs)
 
 
-def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
+def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> RenderableType:
     """Print a structure tree to the console.
 
     Recursively renders nested structs as sub-branches. When ``parent`` is
@@ -61,15 +61,12 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
             text += f"[dim italic yellow] (Requires: {configs})[/]"
 
         if field.field_type.layout:
-            field_node = tree.add(field_text)
+            field_node = tree.add(text)  # FIXME: Check if wrong
             render_struct(field.field_type.layout, parent=field_node)
         else:
             tree.add(text)
 
-    for nested in struct.nested:
-        render_struct(nested, tree)
-
-    ui.raw.print(tree)
+    return tree
 
 
 def render_signature(sig: KconfigSignature) -> None:

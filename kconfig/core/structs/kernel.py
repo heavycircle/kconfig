@@ -6,13 +6,11 @@ from kconfig.core import parser, utils
 from kconfig.core.config import state
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import ui
-from kconfig.types import KconfigStruct, KconfigStructField
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from rich.status import Status
     from tree_sitter import Node
 
 
@@ -57,4 +55,4 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, Path]:
                 ui.out_debug(f"Resolved alias: {struct_name} -> {true_name}")
                 return find_struct_declaration(true_name)
 
-    raise KconfigSymbolNotFoundError(struct_name, kernel_root)
+    raise KconfigSymbolNotFoundError(struct_name, state.kernel_dir)

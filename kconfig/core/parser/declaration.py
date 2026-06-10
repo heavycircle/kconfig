@@ -3,11 +3,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.core.structs.kernel import find_struct_declaration
-from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError
+from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigSymbolNotFoundError
 from kconfig.styling_api import ui
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 
-from .utils import get_enclosing_configs, get_field_identifier, get_true_type, get_type_identifier, is_primitive_type
+from .utils import (
+    get_enclosing_configs,
+    get_field_identifier,
+    get_true_type,
+    get_type_identifier,
+    is_direct_member,
+    is_primitive_type,
+)
 
 
 if TYPE_CHECKING:
@@ -32,7 +39,9 @@ def parse_field_declaration(
     if not declarators:
         # Structure with a body -> anonymous
         has_body = type_node.child_by_field_name("body")
-        if type_node.type in ("struct_specifier", "union_specifier") and has_body:  # TODO: struct_specifier should never hit here
+        if (
+            type_node.type in ("struct_specifier", "union_specifier") and has_body
+        ):  # TODO: struct_specifier should never hit here
             base_name = f"anonymous {type_node.type.split('_')[0]}"
             ui.out_debug(f" >> Recursing into {base_name}")
 
@@ -45,7 +54,7 @@ def parse_field_declaration(
         # No declarator and not inline -> must be bad
         return []
 
-    fields = []
+    fields: list[KconfigStructField] = []
     for decl_node in declarators:
         # Get the base field_identifier.
         field_identifier = get_field_identifier(decl_node)
@@ -91,8 +100,8 @@ def parse_field_declaration(
 
 
 def _get_direct_fields(node: Node) -> list[Node]:
-    fields = []
-    for child in current.children:
+    fields: list[Node] = []
+    for child in node.children:
         if child.type == "field_declaration":
             fields.append(child)
         elif child.type.startswith("preproc_"):
@@ -100,21 +109,22 @@ def _get_direct_fields(node: Node) -> list[Node]:
 
     return fields
 
+
 def parse_field_declaration_list(
-    field_node: Node, decl_path: Path, recursive: bool, visited: set[str] | None = None
+    root_node: Node, root_name: str, decl_path: Path, recursive: bool, visited: set[str] | None = None
 ) -> list[KconfigStructField]:
-    """Parse a field_declaration_List to get the types underneath."""
+    """Parse a field_declaration_list to get the types underneath."""
     if root_node.type != "field_declaration_list":
         raise KconfigInvalidArgumentError(root_node.type, "Not a field_declaration_list")
 
     if visited is None:
         visited = set()
 
-    field_layout = []
+    field_layout: list[KconfigStructField] = []
     for child in _get_direct_fields(root_node):
         fields = parse_field_declaration(child, decl_path, recursive, visited)
         if not fields:
-            ui.out_warning(f"Failed to resolve field: {child.text.decode()}")
+            ui.out_warning(f"Failed to resolve field in '{root_name}': {child.text.decode()}")
 
         field_layout.extend(fields)
 
@@ -125,8 +135,8 @@ def parse_struct_specifier(
     root_node: Node, decl_path: Path, recursive: bool, visited: set[str] | None = None
 ) -> KconfigStruct:
     """Parse a struct_specifier node."""
-    if root_node.type != "struct_specifier":
-        raise KconfigInvalidArgumentError(root_node.type, "Not a struct_specifier")
+    if root_node.type not in ("struct_specifier", "union_specifier"):
+        raise KconfigInvalidArgumentError(root_node.type, "Not a struct_specifier or union_specifier")
 
     name_node = root_node.child_by_field_name("name")
     name = name_node.text.decode() if name_node else f"anonymous {root_node.type.split('_')[0]}"
@@ -136,11 +146,13 @@ def parse_struct_specifier(
         raise KconfigASTAnomalyError(root_node.type, "Missing name and body")
 
     struct_layout = KconfigStruct(name, decl_path)
-    struct_layout.fields = parse_field_declaration_list(body_node, decl_path, recursive, visited)
+    struct_layout.fields = parse_field_declaration_list(body_node, name, decl_path, recursive, visited)
     return struct_layout
 
 
-def get_kernel_struct(struct_name: str, recursive: bool = False, visited: set[str] | None = None) -> KconfigStruct | None:
+def get_kernel_struct(
+    struct_name: str, recursive: bool = False, visited: set[str] | None = None
+) -> KconfigStruct | None:
     """Find configs inside a structure."""
     if visited is None:
         visited = set()
@@ -150,5 +162,9 @@ def get_kernel_struct(struct_name: str, recursive: bool = False, visited: set[st
         return None
     visited.add(struct_name)
 
-    root_node, path = find_struct_declaration(struct_name)
-    return parse_struct_specifier(root_node, path, recursive, visited)
+    try:
+        root_node, path = find_struct_declaration(struct_name)
+        return parse_struct_specifier(root_node, path, recursive, visited)
+    except KconfigSymbolNotFoundError:
+        ui.out_warning(f"Cannot find definition for '{struct_name}'")
+        return None

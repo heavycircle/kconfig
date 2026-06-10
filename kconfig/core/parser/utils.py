@@ -14,6 +14,31 @@ if TYPE_CHECKING:
     from tree_sitter import Node
 
 
+def parse_preproc_if(preproc_node: Node) -> list[str]:
+    """Parse a preproc_if node."""
+    configs: list[str] = []
+
+    if preproc_node.type in ("preproc_ifdef", "preproc_ifndef"):
+        name_node = preproc_node.child_by_field_name("name")
+        if not name_node:
+            raise KconfigASTAnomalyError(preproc_node.type, "Missing 'name'")
+
+        text = name_node.text.decode()
+        if text.startswith("CONFIG_"):
+            configs.append(text)
+
+    if preproc_node.type in ("preproc_if", "preproc_elif"):
+        print(preproc_node, end="\n\n")
+        condition_node = preproc_node.child_by_field_name("condition")
+        if not condition_node:
+            raise KconfigASTAnomalyError(preproc_node.type, "Missing 'condition'")
+
+        text = condition_node.text.decode()
+        configs.extend(re.findall(r"(CONFIG_[A-Za-z0-9_]+)", text))
+
+    return configs
+
+
 def get_enclosing_configs(node: Node) -> list[str]:
     """Walk up the AST to find all #ifdef locking this field.
 
@@ -31,14 +56,8 @@ def get_enclosing_configs(node: Node) -> list[str]:
         if current.type in ("struct_specifier", "union_specifier"):  # NOTE: Might need to remove union_specifier
             break
 
-        if current.type in ("preproc_ifdef", "preproc_if"):
-            if not current.text:
-                raise KconfigASTAnomalyError(current.type, "Missing body")
-
-            text = current.text.decode()
-            match = re.search(r"(CONFIG_[A-Za-z0-9]+)", text)
-            if match:
-                configs.insert(0, match.group(1))
+        if current.type.startswith("preproc_"):
+            configs.extend(parse_preproc_if(current))
 
         current = current.parent
 
@@ -60,7 +79,7 @@ def get_true_type(type_node: Node, field_identifier: Node) -> str:
 
     """
     base_type = type_node.text.decode()
-    
+
     modifiers: list[str] = []
     current = field_identifier.parent
     while current is not None:

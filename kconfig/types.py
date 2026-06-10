@@ -23,6 +23,8 @@ KconfigStructFields = dict[str, str]
 
 @dataclass
 class KconfigFieldType:
+    """The type of a field within a struct."""
+
     original_type: str
     resolved_type: str | None = None
 
@@ -33,6 +35,19 @@ class KconfigFieldType:
         """Check if this field type is anonymous/inline."""
         return self.layout is not None
 
+
+@dataclass
+class KconfigFieldGuard:
+    """A guard that blocks a field from being defined."""
+
+    name: str
+    is_enabled: bool
+
+    def __str__(self) -> str:
+        """String representation."""
+        return self.name if self.is_enabled else f"~{self.name}"
+
+
 @dataclass
 class KconfigStructField:
     """A field within a struct."""
@@ -40,7 +55,7 @@ class KconfigStructField:
     field_name: str
     field_type: KconfigFieldType
 
-    depends: list[str] = field(default_factory=list)
+    depends: list[KconfigFieldGuard] = field(default_factory=list)
 
 
 @dataclass
@@ -51,7 +66,6 @@ class KconfigStruct:
     file: Path
 
     fields: list[KconfigStructField] = field(default_factory=list)
-    nested: list[KconfigStruct] = field(default_factory=list)
 
     @property
     def dependencies(self) -> int:
@@ -61,9 +75,10 @@ class KconfigStruct:
             int: Total number of nested structs at all depths.
 
         """
-        count = len(self.nested)
-        for child in self.nested:
-            count += child.dependencies
+        count = 1
+        for child in self.fields:
+            if child.field_type.layout is not None:
+                count += child.field_type.layout.dependencies
         return count
 
 
