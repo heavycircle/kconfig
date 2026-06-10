@@ -8,6 +8,8 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.tree import Tree
 
+from kconfig.core import utils
+
 from .logging import ui
 
 
@@ -39,7 +41,7 @@ def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.k
         return func(*args, **kwargs)
 
 
-def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
+def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> RenderableType:
     """Print a structure tree to the console.
 
     Recursively renders nested structs as sub-branches. When ``parent`` is
@@ -51,21 +53,21 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
             child. If ``None`` a new root tree is created and printed.
 
     """
-    title = f"[bold cyan]struct {struct.name}[/] [dim]({struct.file})[/]"
+    title = f"[bold cyan]{struct.name}[/] [dim]({struct.file})[/]"
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
     for field in struct.fields:
-        text = f"[green]{field.field_type}[/] [white]{field.field_name}[/]"
+        field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
         if field.depends:
-            configs = " & ".join(field.depends)
-            text += f"[dim italic yellow] (Requires: {configs})[/]"
+            field_text += f"[dim italic yellow] (Requires: {utils.simplify_config_expression(str(field.depends))})[/]"
 
-        tree.add(text)
+        if field.field_type.layout:
+            field_node = tree.add(field_text)
+            render_struct(field.field_type.layout, parent=field_node)
+        else:
+            tree.add(field_text)
 
-    for nested in struct.nested:
-        render_struct(nested, tree)
-
-    ui.raw.print(tree)
+    return tree
 
 
 def render_signature(sig: KconfigSignature) -> None:

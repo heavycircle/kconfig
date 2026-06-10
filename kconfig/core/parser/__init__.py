@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .query import run_node_query, run_query
-from .utils import get_custom_members, get_enclosing_configs, get_true_type, is_direct_member
+from .utils import get_custom_members, get_enclosing_configs, get_true_type, is_direct_member, is_primitive_type
 
 
 __all__ = [
@@ -9,6 +9,7 @@ __all__ = [
     "get_enclosing_configs",
     "get_true_type",
     "is_direct_member",
+    "is_primitive_type",
     "run_node_query",
     "run_query",
 ]

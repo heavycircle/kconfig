@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from kconfig.core import utils
-from kconfig.exceptions import KconfigASTAnomalyError
-from kconfig.types import KconfigCustomMembers
+from kconfig.types import KconfigCustomMembers, KconfigFieldGuard
 
+from .preprocessor import parse_preproc
 from .query import run_node_query
 
 
@@ -14,38 +13,30 @@ if TYPE_CHECKING:
     from tree_sitter import Node
 
 
-def get_enclosing_configs(node: Node) -> list[str]:
+def get_enclosing_configs(node: Node) -> KconfigFieldGuard | None:
     """Walk up the AST to find all #ifdef locking this field.
 
     Args:
         node (Node): Base node to walk.
 
     Returns:
-        list[str]: CONFIG options locking this node.
+        KconfigFieldGuard: CONFIG options locking this node, else None.
 
     """
-    configs: list[str] = []
-
     current = node.parent
     while current is not None:
         if current.type in ("struct_specifier", "union_specifier"):  # NOTE: Might need to remove union_specifier
             break
 
-        if current.type in ("preproc_ifdef", "preproc_if"):
-            if not current.text:
-                raise KconfigASTAnomalyError(current.type, "Missing body")
-
-            text = current.text.decode()
-            match = re.search(r"(CONFIG_[A-Za-z0-9]+)", text)
-            if match:
-                configs.insert(0, match.group(1))
+        if current.type.startswith("preproc_"):
+            return parse_preproc(current)
 
         current = current.parent
 
-    return configs
+    return None
 
 
-def get_true_type(node: Node, base_type: str) -> str:
+def get_true_type(type_node: Node, field_identifier: Node) -> str:
     """Re-construct the full C type by walking up the declarator chain.
 
     Appends pointer (``*``), array (``[]``), and function-pointer (``()``)
@@ -59,9 +50,10 @@ def get_true_type(node: Node, base_type: str) -> str:
         str: Full reconstructed type (e.g. ``"unsigned int *"``).
 
     """
-    modifiers: list[str] = []
+    base_type = type_node.text.decode()
 
-    current = node.parent
+    modifiers: list[str] = []
+    current = field_identifier.parent
     while current is not None:
         if current.type == "field_declaration":
             break
@@ -111,3 +103,34 @@ def is_direct_member(field_node: Node, root_node: Node) -> bool:
         current = current.parent
 
     return False
+
+
+def is_primitive_type(field_node: Node) -> bool:
+    """Check if a field_node is a primitive type."""
+    return field_node.type not in ("primitive_type", "sized_type_specifier")
+
+
+def get_field_identifier(field_node: Node) -> Node | None:
+    """Get the field_identifier from a field node."""
+    to_check = [field_node]
+    while to_check:
+        current = to_check.pop(0)
+        if current.type == "field_identifier" and current.text:
+            return current
+
+        to_check.extend(current.children)
+
+    return None
+
+
+def get_type_identifier(field_node: Node) -> Node | None:
+    """Get the type_identifier from a field node."""
+    to_check = [field_node]
+    while to_check:
+        current = to_check.pop(0)
+        if current.type == "type_identifier" and current.text:
+            return current
+
+        to_check.extend(current.children)
+
+    return None
