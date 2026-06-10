@@ -1,14 +1,23 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import sys
+from pathlib import Path
 
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from rich.markup import escape
 
 
 class KconfigError(Exception):
     """Base exception class for all Kconfig CLI operations."""
+
+    def __init__(self, msg: str) -> None:
+        frame = sys._getframe(2)
+
+        self.func_name = frame.f_code.co_name
+        self.filename = Path(frame.f_code.co_filename).name
+        self.lineno = frame.f_lineno
+
+        src = escape(f"[{self.filename} {self.func_name}: {self.lineno}]")
+        super().__init__(f"{src}: {msg}")
 
 
 # --- Argparse Errors ------------------------------------------
@@ -30,6 +39,13 @@ class KconfigMissingArgumentError(KconfigCLIError):
 
     def __init__(self, argument: str) -> None:
         super().__init__(f"Missing Required Argument: {argument}")
+
+
+class KconfigUnsupportedArgumentError(KconfigCLIError):
+    """Raise when we find an argument that we can't handle."""
+
+    def __init__(self, argument: str) -> None:
+        super().__init__(f"Unsupported Argument: {argument}")
 
 
 # --- File System Errors ---------------------------------------

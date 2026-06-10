@@ -8,6 +8,8 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.tree import Tree
 
+from kconfig.core import utils
+
 from .logging import ui
 
 
@@ -55,16 +57,15 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> Renderab
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
     for field in struct.fields:
-        text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
+        field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
         if field.depends:
-            configs = " & ".join(field.depends)
-            text += f"[dim italic yellow] (Requires: {configs})[/]"
+            field_text += f"[dim italic yellow] (Requires: {utils.simplify_config_expression(str(field.depends))})[/]"
 
         if field.field_type.layout:
-            field_node = tree.add(text)  # FIXME: Check if wrong
+            field_node = tree.add(field_text)
             render_struct(field.field_type.layout, parent=field_node)
         else:
-            tree.add(text)
+            tree.add(field_text)
 
     return tree
 

@@ -4,15 +4,14 @@ from typing import TYPE_CHECKING
 
 from kconfig.core.structs.kernel import find_struct_declaration
 from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigSymbolNotFoundError
-from kconfig.styling_api import ui
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
+from kconfig.ui import ui
 
 from .utils import (
     get_enclosing_configs,
     get_field_identifier,
     get_true_type,
     get_type_identifier,
-    is_direct_member,
     is_primitive_type,
 )
 

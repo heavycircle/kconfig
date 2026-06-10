@@ -38,14 +38,34 @@ class KconfigFieldType:
 
 @dataclass
 class KconfigFieldGuard:
-    """A guard that blocks a field from being defined."""
+    """A CONFIG guard changing whether a field is present."""
 
-    name: str
-    is_enabled: bool
+    # Base information
+    name: str = ""
+    is_enabled: bool = True
+
+    # Recursing into sub-operations
+    operand: str | None = None
+    expression: list[KconfigFieldGuard] = field(default_factory=list)
+
+    @property
+    def is_expression(self) -> bool:
+        """Check if this guard is an expression or a leaf node."""
+        return self.operand is not None
 
     def __str__(self) -> str:
-        """String representation."""
-        return self.name if self.is_enabled else f"~{self.name}"
+        """Print the guard."""
+        if self.is_expression and self.operand:
+            s = f" {self.operand} ".join(str(x) for x in self.expression)
+        else:
+            s = self.name
+
+        if self.is_enabled:
+            return s
+
+        if self.is_expression:
+            return f"~({s})"
+        return f"~{s}"
 
 
 @dataclass
@@ -55,7 +75,7 @@ class KconfigStructField:
     field_name: str
     field_type: KconfigFieldType
 
-    depends: list[KconfigFieldGuard] = field(default_factory=list)
+    depends: KconfigFieldGuard | None = None
 
 
 @dataclass

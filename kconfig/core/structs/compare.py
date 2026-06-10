@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kconfig.exceptions import KconfigSymbolNotFoundError
-from kconfig.styling_api import ui
 from kconfig.types import KconfigAnalysis, KconfigConfigEvidence
+from kconfig.ui import ui
 
 from .module import get_module_struct
 

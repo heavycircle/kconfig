@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from kconfig.core import parser, utils
 from kconfig.core.config import state
 from kconfig.exceptions import KconfigSymbolNotFoundError
-from kconfig.styling_api import ui
 from kconfig.types import KconfigSignature
+from kconfig.ui import ui
 
 
 if TYPE_CHECKING:

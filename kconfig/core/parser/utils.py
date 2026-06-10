@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from kconfig.core import utils
-from kconfig.exceptions import KconfigASTAnomalyError
-from kconfig.types import KconfigCustomMembers
+from kconfig.types import KconfigCustomMembers, KconfigFieldGuard
 
+from .preprocessor import parse_preproc
 from .query import run_node_query
 
 
@@ -14,54 +13,27 @@ if TYPE_CHECKING:
     from tree_sitter import Node
 
 
-def parse_preproc_if(preproc_node: Node) -> list[str]:
-    """Parse a preproc_if node."""
-    configs: list[str] = []
-
-    if preproc_node.type in ("preproc_ifdef", "preproc_ifndef"):
-        name_node = preproc_node.child_by_field_name("name")
-        if not name_node:
-            raise KconfigASTAnomalyError(preproc_node.type, "Missing 'name'")
-
-        text = name_node.text.decode()
-        if text.startswith("CONFIG_"):
-            configs.append(text)
-
-    if preproc_node.type in ("preproc_if", "preproc_elif"):
-        print(preproc_node, end="\n\n")
-        condition_node = preproc_node.child_by_field_name("condition")
-        if not condition_node:
-            raise KconfigASTAnomalyError(preproc_node.type, "Missing 'condition'")
-
-        text = condition_node.text.decode()
-        configs.extend(re.findall(r"(CONFIG_[A-Za-z0-9_]+)", text))
-
-    return configs
-
-
-def get_enclosing_configs(node: Node) -> list[str]:
+def get_enclosing_configs(node: Node) -> KconfigFieldGuard | None:
     """Walk up the AST to find all #ifdef locking this field.
 
     Args:
         node (Node): Base node to walk.
 
     Returns:
-        list[str]: CONFIG options locking this node.
+        KconfigFieldGuard: CONFIG options locking this node, else None.
 
     """
-    configs: list[str] = []
-
     current = node.parent
     while current is not None:
         if current.type in ("struct_specifier", "union_specifier"):  # NOTE: Might need to remove union_specifier
             break
 
         if current.type.startswith("preproc_"):
-            configs.extend(parse_preproc_if(current))
+            return parse_preproc(current)
 
         current = current.parent
 
-    return configs
+    return None
 
 
 def get_true_type(type_node: Node, field_identifier: Node) -> str:
