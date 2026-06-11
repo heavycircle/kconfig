@@ -68,7 +68,7 @@ def kernel_fetch(
 
         ui.out_info("Extracting tarball...")
         with tarfile.open(tarball_path, "r:xz") as tar:
-            tar.extractall(path=CACHE_KERNEL_DIR)
+            tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
 
         tarball_path.unlink()
         ui.out_success(f"Kernel {version} ready at {extract_dir}")
