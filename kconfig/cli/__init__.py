@@ -31,6 +31,9 @@ def main() -> None:
         app()
 
     except KconfigError as e:
+        if ui.debug_mode:
+            raise
+
         ui.out_error(e)
         sys.exit(1)
 
@@ -38,6 +41,6 @@ def main() -> None:
         if ui.debug_mode:
             raise
 
-        ui.out_error(e)
+        ui.out_error(f"[bold red]{type(e).__name__}[/]: {e}")
         ui.out_error("Run with --debug for more details.")
         sys.exit(1)
