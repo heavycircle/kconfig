@@ -38,14 +38,15 @@ def parse_field_declaration(
     if not declarators:
         # Structure with a body -> anonymous
         has_body = type_node.child_by_field_name("body")
-        if (
-            type_node.type in ("struct_specifier", "union_specifier") and has_body
-        ):  # TODO: struct_specifier should never hit here
+        if type_node.type in ("struct_specifier", "union_specifier") and has_body:
+            # TODO: struct_specifier should never hit here
             base_name = f"anonymous {type_node.type.split('_')[0]}"
-            ui.out_debug(f" >> Recursing into {base_name}")
+            ui.out_debug(f" >> Recursing into {base_name}: unnamed")
 
+            anonymous_field = KconfigStruct(f"<{base_name}>", f"<{base_name}>", decl_path)
+            anonymous_field.fields = parse_struct_specifier(type_node, decl_path, recursive, visited)
             type_layout = KconfigFieldType(base_name)
-            type_layout.layout = parse_struct_specifier(type_node, decl_path, recursive, visited)
+            type_layout.layout = anonymous_field
 
             configs = get_enclosing_configs(field_node)
             return [KconfigStructField("<anonymous>", type_layout, depends=configs)]
@@ -71,8 +72,10 @@ def parse_field_declaration(
                 base_type = f"anonymous {type_node.type.split('_')[0]}"
                 ui.out_debug(f" >> Recursing into {base_type}: {field_name}")
 
-                type_layout = KconfigFieldType(base_type)
-                type_layout.layout = parse_struct_specifier(type_node, decl_path, recursive, visited)
+                anonymous_field = KconfigStruct(f"<{base_name}>", f"<{base_name}>", decl_path)
+                anonymous_field.fields = parse_struct_specifier(type_node, decl_path, recursive, visited)
+                type_layout = KconfigFieldType(base_name)
+                type_layout.layout = anonymous_field
 
                 configs = get_enclosing_configs(field_node)
                 return [KconfigStructField(field_name, type_layout, depends=configs)]
@@ -132,7 +135,7 @@ def parse_field_declaration_list(
 
 def parse_struct_specifier(
     root_node: Node, decl_path: Path, recursive: bool, visited: set[str] | None = None
-) -> KconfigStruct:
+) -> list[KconfigStructField]:
     """Parse a struct_specifier node."""
     if root_node.type not in ("struct_specifier", "union_specifier"):
         raise KconfigInvalidArgumentError(root_node.type, "Not a struct_specifier or union_specifier")
@@ -144,9 +147,7 @@ def parse_struct_specifier(
     if not body_node:
         raise KconfigASTAnomalyError(root_node.type, "Missing name and body")
 
-    struct_layout = KconfigStruct(name, decl_path)
-    struct_layout.fields = parse_field_declaration_list(body_node, name, decl_path, recursive, visited)
-    return struct_layout
+    return parse_field_declaration_list(body_node, name, decl_path, recursive, visited)
 
 
 def get_kernel_struct(
@@ -162,8 +163,9 @@ def get_kernel_struct(
     visited.add(struct_name)
 
     try:
-        root_node, path = find_struct_declaration(struct_name)
-        return parse_struct_specifier(root_node, path, recursive, visited)
+        root_node, struct_info = find_struct_declaration(struct_name)
+        return parse_struct_specifier(root_node, struct_info.file, recursive, visited)
+        return struct_info
     except KconfigSymbolNotFoundError:
         ui.out_warning(f"Cannot find definition for '{struct_name}'")
         return None
