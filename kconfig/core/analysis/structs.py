@@ -1,3 +1,23 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import sympy
+from rich.table import Table
+
+from kconfig.core import structs
+from kconfig.exceptions import KconfigSymbolNotFoundError
+from kconfig.types import KconfigConfigEvidence
+from kconfig.ui import ui
+
+from .guards import parse_config_guard
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from kconfig.types import KconfigStruct
+
+
 EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
 
 def gather_evidence(
@@ -18,7 +38,7 @@ def gather_evidence(
         active_chain.add(name)
 
     try:
-        layout = get_module_struct(modules, name) if name else {}
+        layout = structs.get_module_struct(modules, name) if name else {}
     except KconfigSymbolNotFoundError:
         ui.out_warning(f"Cannot find struct: '{struct.original_name}'")
         return []
