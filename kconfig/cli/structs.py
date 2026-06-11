@@ -9,6 +9,7 @@ from kconfig.control_api import (
     get_kernel_struct,
     state,
 )
+from kconfig.core import analysis
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import render_struct, render_struct_comparison_table, ui
 
@@ -28,6 +29,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
     if not struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
+    ui.out_info(f"Rendering struct: {symbol}")
     ui.raw.print(render_struct(struct))
     if recursive:
         ui.out_info(f"Found {struct.dependencies} dependencies!")
@@ -43,6 +45,4 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
-    build_module_struct_cache(state.module_dir)
-    report = analyze_struct_tree(kernel_struct, state.module_dir)
-    render_struct_comparison_table(report)
+    analysis.analyze_struct_tree(kernel_struct, state.module_dir)
