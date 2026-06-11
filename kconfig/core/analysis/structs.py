@@ -87,7 +87,7 @@ def analyze_struct_tree(root_struct: KconfigStruct, modules: Path) -> None:
     for con, ev in constraints.items():
         ev_str = "\n".join(f" - {e}" for e in ev)
 
-        next_state = sympy.simplify_logic(sympy.And(global_state, ev))
+        next_state = sympy.simplify_logic(sympy.And(global_state, con))
         if next_state == sympy.false:
             global_conflict = True
             table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str)
