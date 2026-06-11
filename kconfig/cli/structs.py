@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import typer
 
-from kconfig.control_api import analyze_struct_tree, get_kernel_struct, get_module_capabilities, state
+from kconfig.control_api import (
+    analyze_struct_tree,
+    build_module_struct_cache,
+    build_struct_location_cache,
+    get_kernel_struct,
+    state,
+)
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import render_struct, render_struct_comparison_table, ui
 
@@ -17,6 +23,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
     """Find a symbol inside the kernel."""
     state.kernel_version = kernel
 
+    build_struct_location_cache()
     struct = get_kernel_struct(symbol, recursive=recursive)
     if not struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
@@ -36,6 +43,6 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(state.kernel_version or "Unknown", symbol)
 
-    get_module_capabilities(state.module_dir)
+    build_module_struct_cache(state.module_dir)
     report = analyze_struct_tree(kernel_struct, state.module_dir)
     render_struct_comparison_table(report)

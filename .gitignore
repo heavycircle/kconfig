@@ -2,6 +2,7 @@
 /linux-*/
 /linux-*.tar.[xg]z
 *.ko
+*.prof
 
 # Byte-compiled files
 __pycache__/

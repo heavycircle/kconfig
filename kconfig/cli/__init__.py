@@ -41,7 +41,3 @@ def main() -> None:
         ui.out_error(e)
         ui.out_error("Run with --debug for more details.")
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
