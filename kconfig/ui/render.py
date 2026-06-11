@@ -53,7 +53,11 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> Renderab
             child. If ``None`` a new root tree is created and printed.
 
     """
-    title = f"[bold cyan]{struct.name}[/] [dim]({struct.file})[/]"
+    title = f"[bold cyan]{struct.name}[/]"
+    if struct.resolved_name != struct.original_name:
+        title += f" [dim italic] -> {struct.resolved_name}[/]"
+    title += f" [dim]({struct.file})[/]"
+
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
     for field in struct.fields:
