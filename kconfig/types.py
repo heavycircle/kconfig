@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from sympy import Expr
 from tree_sitter import Node
 
 
@@ -136,6 +137,9 @@ class KconfigConfigEvidence:
     struct_name: str
     field_name: str
     is_enabled: bool
+
+    raw_guard: Expr
+    constraints: Expr
 
     def __str__(self) -> str:
         """Return a human-readable string describing this evidence.
