@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from kconfig.core import analysis
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigAnalysis, KconfigConfigEvidence
 from kconfig.ui import ui
@@ -39,13 +40,10 @@ def analyze_struct_tree(
 
     try:
         layout = get_module_struct(modules, root_struct.name)
-        for field in root_struct.fields:
-            is_present = field.field_name in layout
-            for config in field.depends:
-                report.add_evidence(config, KconfigConfigEvidence(root_struct.name, field.field_name, is_present))
-
+        solve = analysis.analyze_struct_fields(root_struct.fields, layout)
+        print(solve)
+    
         # TODO: check for type mismatches
-
         for nested in root_struct.nested:
             analyze_struct_tree(nested, modules, report)
     except KconfigSymbolNotFoundError as e:
