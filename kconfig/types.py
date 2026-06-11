@@ -4,12 +4,13 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from sympy import Expr
 from tree_sitter import Node
 
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from sympy import Expr
 
 
 KconfigQueryCapture = dict[str, list[Node]]

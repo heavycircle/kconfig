@@ -72,8 +72,8 @@ def parse_field_declaration(
         if type_node.type in ("struct_specifier", "union_specifier"):
             # Check for anonymous structs/unions with declarators.
             if type_node.child_by_field_name("body") is not None:
-                base_type = f"anonymous {type_node.type.split('_')[0]}"
-                ui.out_debug(f" >> Recursing into {base_type}: {field_name}")
+                base_name = f"anonymous {type_node.type.split('_')[0]}"
+                ui.out_debug(f" >> Recursing into {base_name}: {field_name}")
 
                 anonymous_field = KconfigStruct(f"<{base_name}>", f"<{base_name}>", decl_path)
                 anonymous_field.fields = parse_struct_specifier(type_node, decl_path, recursive, visited)
@@ -167,11 +167,11 @@ def get_kernel_struct(
     if struct_name in active_chain:
         ui.out_debug(f"Already parsed: {struct_name}")
         return None
-    visited.add(struct_name)
+    active_chain.add(struct_name)
 
     try:
         root_node, struct_info = find_struct_declaration(struct_name)
-        struct_info.fields = parse_struct_specifier(root_node, struct_info.file, recursive, visited)
+        struct_info.fields = parse_struct_specifier(root_node, struct_info.file, recursive, active_chain)
         STRUCT_LAYOUT_CACHE[struct_name] = struct_info
         return struct_info
     except KconfigSymbolNotFoundError:

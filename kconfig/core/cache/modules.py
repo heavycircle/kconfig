@@ -5,15 +5,19 @@ import json
 import subprocess
 from typing import TYPE_CHECKING
 
-from kconfig.core import parser, utils
-from kconfig.core.cache.config import CACHE_MODULE_DIR
+from kconfig.core import cache, config, parser, utils
 from kconfig.exceptions import KconfigSubprocessFailedError
-from kconfig.types import KconfigStruct, KconfigStructFields
 from kconfig.ui import ui
 
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from kconfig.types import KconfigStructFields
+
+MODULE_CACHE: dict[str, dict] = {}
+
+module_cache_file = cache.CACHE_MODULE_DIR / "module_layouts.json"
 
 
 def cache_module_structs(ko_path: Path) -> dict[str, KconfigStructFields]:
@@ -27,22 +31,22 @@ def cache_module_structs(ko_path: Path) -> dict[str, KconfigStructFields]:
 
     """
     cmd = ["pahole", str(ko_path)]
-    result = subprocess.run(cmd, check=True, capture_output=True)  # noqa: S603
+
+    result = subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
     if result.returncode != 0 or not result.stdout.strip():
         raise KconfigSubprocessFailedError("pahole", result.stderr.decode().strip())
 
-    cache: dict[str, KconfigStructFields] = {}
+    module_cache: dict[str, KconfigStructFields] = {}
     for _, captures in parser.run_query("struct-list", result.stdout):
         name_node = utils.get_capture_text(captures, "struct.name")
-        def_node = utils.get_capture_text(captures, "struct.def")
-        if not (name_node and def_node):
+        if not name_node:
             continue
 
-        struct = KconfigStruct(name_node[0].decode(), ko_path)
-        fields = utils.get_struct_members(struct)
-        cache[struct.name] = fields
+        fields = parser.parse_struct_specifier(captures["struct.name"][0].parent, ko_path, recursive=False)
+        mapping = {f.field_name: f.field_type.original_type for f in fields}
+        module_cache[name_node[0].decode("utf-8", errors="replace")] = mapping
 
-    return cache
+    return module_cache
 
 
 def get_module_layout(ko_path: Path) -> dict[str, KconfigStructFields]:
@@ -55,37 +59,48 @@ def get_module_layout(ko_path: Path) -> dict[str, KconfigStructFields]:
         dict[str, KconfigStructFields]: Mapping of struct name to its field-to-type map.
 
     """
-    module_dir = CACHE_MODULE_DIR / "modules"
-    module_dir.mkdir(parents=True, exist_ok=True)
+    rel_path = ko_path.relative_to(config.state.module_dir).as_posix()
+    ko_stat = ko_path.stat()
+    ko_signature = f"{ko_stat.st_mtime}_{ko_stat.st_size}"
 
-    safe_name = str(ko_path.resolve()).replace("/", "_") + ".json"
-    file_sum = hashlib.sha256(ko_path.read_bytes()).hexdigest()
+    if rel_path in MODULE_CACHE:
+        if MODULE_CACHE[rel_path].get("signature") == ko_signature:
+            return MODULE_CACHE[rel_path]["layout"]
 
-    cache_file = module_dir / safe_name
-    if cache_file.exists():
-        with cache_file.open(encoding="utf-8") as f:
-            cache_data = json.load(f)
-
-        if file_sum == cache_data["sha256"]:
-            ui.out_debug(f"Using cached module layout: {ko_path}")
-            return cache_data["layout"]
+        ui.out_debug(f"Module '{ko_path.name}' recompiled, updating cache ...")
 
     layout = cache_module_structs(ko_path)
-    with cache_file.open("w", encoding="utf-8") as f:
-        json.dump({"sha256": file_sum, "layout": layout}, f)
-
+    MODULE_CACHE[rel_path] = {"signature": ko_signature, "layout": layout}
     return layout
 
 
-def build_module_struct_cache(module_root: Path) -> None:
-    """Refresh the on-disk layout cache for all ``.ko`` files under ``module_root``.
+def load_module_cache() -> None:
+    if not module_cache_file.exists():
+        return
 
-    Args:
-        module_root (Path): Root directory to search for ``.ko`` kernel modules.
+    try:
+        with module_cache_file.open(encoding="utf-8") as f:
+            data = json.load(f)
 
-    """
-    total_files = sum(1 for f in module_root.rglob("*.ko") if f.is_file())
-    ui.out_info(f"Refreshing the cache for {total_files} module ...")
+        MODULE_CACHE.clear()
+        MODULE_CACHE.update(data)
 
-    for file in module_root.rglob("*.ko"):
+        ui.out_debug(f"Loaded {len(MODULE_CACHE)} module layouts from disk.")
+    except (json.JSONDecodeError, KeyError):
+        ui.out_warning("Module cache corrupted, rebuilding ...")
+
+
+def build_module_struct_cache() -> None:
+    """Refresh the on-disk layout cache for all ``.ko`` files under ``module_root``."""
+    load_module_cache()
+
+    ko_files = list(config.state.module_dir.rglob("*.ko"))
+    if not ko_files:
+        ui.out_warning(f"No .ko files found in {config.state.module_dir}")
+        return
+
+    for file in ko_files:
         get_module_layout(file)
+
+    with module_cache_file.open("w") as f:
+        json.dump(MODULE_CACHE, f)

@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 
 from kconfig.core import config, parser, utils
+from kconfig.types import KconfigStruct
 from kconfig.ui import ui
 
 from .config import CACHE_STRUCT_DIR
 
 
 STRUCT_CACHE: dict[str, set[Path]] = {}
+ALIAS_CACHE: dict[str, str] = {}
+
 struct_path_file = CACHE_STRUCT_DIR / "cache_struct_paths.json"
 
 
@@ -21,6 +24,7 @@ def cache_struct_locations() -> None:
     """
     ui.out_info("Warming the struct location cache (this may take a minute)...")
     STRUCT_CACHE.clear()
+    ALIAS_CACHE.clear()
 
     for path in config.state.kernel_dir.rglob("*.[ch]"):
         contents = path.read_bytes()
@@ -30,20 +34,32 @@ def cache_struct_locations() -> None:
                 continue
 
             found_name = struct_names[0].decode()
-
-            # Store the ABSOLUTE path in memory for the engine to use right now
             STRUCT_CACHE.setdefault(found_name, set()).add(path)
 
+        for _, captures in parser.run_query("alias-find", contents):
+            alias_names = utils.get_capture_text(captures, "alias.name")
+            alias_targets = utils.get_capture_text(captures, "alias.target")
+            if not (alias_names and alias_targets):
+                continue
+
+            name = alias_names[0].decode(encoding="utf-8", errors="replace")
+            target = alias_targets[0].decode(encoding="utf-8", errors="replace")
+            ALIAS_CACHE[name] = target
+
+    # Serialize struct information
     serial_cache: dict[str, list[str]] = {}
     for struct_name, paths in STRUCT_CACHE.items():
         serial_cache[struct_name] = [p.relative_to(config.state.kernel_dir).as_posix() for p in paths]
 
-    payload = {"kernel_dir": config.state.kernel_dir.as_posix(), "structs": serial_cache}
-    struct_path_file.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "kernel_dir": config.state.kernel_dir.as_posix(),
+        "structs": serial_cache,
+        "aliases": ALIAS_CACHE,
+    }
     with struct_path_file.open("w") as f:
         json.dump(payload, f)
 
-    ui.out_success(f"Cached locations for {len(serial_cache)} structs!")
+    ui.out_success(f"Cached locations for {len(STRUCT_CACHE)} structs and {len(ALIAS_CACHE)} aliases!")
 
 
 def build_struct_location_cache() -> None:
@@ -65,7 +81,10 @@ def build_struct_location_cache() -> None:
         for struct_name, rel_paths in payload.get("structs", {}).items():
             STRUCT_CACHE[struct_name] = {config.state.kernel_dir / Path(p) for p in rel_paths}
 
-        ui.out_debug(f"Loaded {len(STRUCT_CACHE)} structs from disk cache.")
+        ALIAS_CACHE.clear()
+        ALIAS_CACHE.update(payload.get("aliases", {}))
+
+        ui.out_debug(f"Loaded {len(STRUCT_CACHE)} structs and {len(ALIAS_CACHE)} aliases from disk cache.")
 
     except (json.JSONDecodeError, KeyError, TypeError):
         ui.out_warning("Cache file corrupted. Rebuilding...")
@@ -88,18 +107,17 @@ def _rank_file(path: Path) -> tuple[int, int, str]:
     return (tier, len(path.parts), path.as_posix())
 
 
-def resolve_target_file(candidate_files: list[Path]) -> Path | None:
-    """Filters multiple struct definitions down to the single correct file."""
-    return min(candidate_files, key=_rank_file, default=None)
-
-
-def get_struct_location(struct_name: str) -> Path | None:
+def get_struct_location(struct_name: str) -> KconfigStruct | None:
     """Finds the definition file for a struct."""
-    if struct_name not in STRUCT_CACHE:
+    true_name = ALIAS_CACHE.get(struct_name, struct_name)
+    if true_name != struct_name:
+        ui.out_debug(f"Resolved alias: {struct_name} -> {true_name}")
+
+    if true_name not in STRUCT_CACHE:
         return None
 
-    locations = list(STRUCT_CACHE[struct_name])
+    locations = list(STRUCT_CACHE[true_name])
     if len(locations) == 1:
-        return locations[0]
+        return KconfigStruct(struct_name, true_name, locations[0])
 
-    return resolve_target_file(locations)
+    return KconfigStruct(struct_name, true_name, min(locations, key=_rank_file))

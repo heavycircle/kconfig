@@ -12,19 +12,19 @@ from kconfig.ui import ui
 
 from .guards import parse_config_guard
 
+
 if TYPE_CHECKING:
     from pathlib import Path
 
     from kconfig.types import KconfigStruct
 
 
-EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
+EVALUATION_CACHE: dict[str, list[KconfigConfigEvidence]] = {}
 
-def gather_evidence(
-    struct: KconfigStruct, 
-    modules: Path, 
-    active_chain: set[str] | None = None
-) -> list[KconfigEvidence]:
+
+def gather_struct_evidence(
+    struct: KconfigStruct, modules: Path, active_chain: set[str] | None = None
+) -> list[KconfigConfigEvidence]:
     if active_chain is None:
         active_chain = set()
 
@@ -32,7 +32,7 @@ def gather_evidence(
     name = struct.original_name
     if name and name in active_chain:
         return []
-    if name and name in _EVIDENCE_CACHE:
+    if name and name in EVALUATION_CACHE:
         return EVALUATION_CACHE[name]
     if name:
         active_chain.add(name)
@@ -44,20 +44,20 @@ def gather_evidence(
         return []
 
     # Parse fields for config options
-    evidence_list: list[KconfigEvidence] = []
+    evidence_list: list[KconfigConfigEvidence] = []
     for field in struct.fields:
         if field.depends:
-            raw_expr = parse_guard(str(field.depends))
+            raw_expr = parse_config_guard(str(field.depends))
             is_present = field.field_name in layout
             applied = raw_expr if is_present else sympy.Not(raw_expr)
-            
+
             evidence_list.append(
-                KconfigEvidence(name or "anonymous", field.field_name, is_present, raw_expr, applied)
+                KconfigConfigEvidence(name or "anonymous", field.field_name, is_present, raw_expr, applied)
             )
 
         # Make recursive calls
         if field.field_type.layout:
-            evidence_list.extend(gather_evidence(field.field_type.layout, modules, active_chain))
+            evidence_list.extend(gather_struct_evidence(field.field_type.layout, modules, active_chain))
 
     if name:
         active_chain.remove(name)
@@ -72,7 +72,7 @@ def analyze_struct_tree(root_struct: KconfigStruct, modules: Path) -> None:
         ui.out_info(f"No CONFIG guards found in {root_struct.original_name}")
         return
 
-    constraints = {}
+    constraints: dict[sympy.Expr, list[KconfigConfigEvidence]] = {}
     for ev in evidence:
         constraints.setdefault(ev.constraints, []).append(ev)
 
@@ -85,7 +85,7 @@ def analyze_struct_tree(root_struct: KconfigStruct, modules: Path) -> None:
     table.add_column("Evidence", style="white")
 
     for con, ev in constraints.items():
-        ev_str = "\n".join(f" - {e}" for e in ev)
+        ev_str = "\n".join({f" - {e}" for e in ev})
 
         next_state = sympy.simplify_logic(sympy.And(global_state, con))
         if next_state == sympy.false:

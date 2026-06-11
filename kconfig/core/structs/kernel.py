@@ -9,8 +9,6 @@ from kconfig.ui import ui
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from tree_sitter import Node
 
     from kconfig.types import KconfigStruct
@@ -34,7 +32,7 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
     if not struct_info:
         raise KconfigSymbolNotFoundError(struct_name, state.kernel_dir.name)
 
-    contents = struct_file.read_bytes()
+    contents = struct_info.file.read_bytes()
     for _, captures in parser.run_query("struct-list", contents):
         struct_names = utils.get_capture_text(captures, "struct.name")
         if not struct_names:
@@ -42,10 +40,10 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
 
         found_name = struct_names[0].decode()
         if found_name == struct_info.resolved_name:
-            rel_file = struct_file.relative_to(state.kernel_dir)
+            rel_file = struct_info.file.relative_to(state.kernel_dir)
             struct_info.file = rel_file
 
             ui.out_debug(f"Found struct '{struct_name}' in {rel_file} ...")
-            return captures["struct.name"][0].parent, rel_file
+            return captures["struct.name"][0].parent, struct_info
 
     raise KconfigSymbolNotFoundError(struct_name, state.kernel_dir)
