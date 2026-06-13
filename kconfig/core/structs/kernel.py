@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core import cache, parser, utils
-from kconfig.core.config import state
+from kconfig.core import cache, config, parser, utils
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.ui import ui
 
@@ -30,7 +29,7 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
     """
     struct_info = cache.get_struct_location(struct_name)
     if not struct_info:
-        raise KconfigSymbolNotFoundError(struct_name, state.kernel_dir.name)
+        raise KconfigSymbolNotFoundError(struct_name, config.state.kernel_dir.name)
 
     contents = struct_info.file.read_bytes()
     for _, captures in parser.run_query("struct-list", contents):
@@ -40,10 +39,10 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
 
         found_name = struct_names[0].decode()
         if found_name == struct_info.resolved_name:
-            rel_file = struct_info.file.relative_to(state.kernel_dir)
+            rel_file = struct_info.file.relative_to(config.state.kernel_dir)
             struct_info.file = rel_file
 
             ui.out_debug(f"Found struct '{struct_name}' in {rel_file} ...")
             return captures["struct.name"][0].parent, struct_info
 
-    raise KconfigSymbolNotFoundError(struct_name, state.kernel_dir)
+    raise KconfigSymbolNotFoundError(struct_name, config.state.kernel_dir.name)

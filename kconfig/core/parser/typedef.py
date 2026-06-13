@@ -1,33 +1,64 @@
 from __future__ import annotations
 
-from kconfig.core import utils
-from kconfig.core.config import state
-from kconfig.types import KconfigFieldType
+from kconfig.core import cache, config, utils
+from kconfig.types import KconfigFieldGuard, KconfigFieldType, KconfigResolvedType
 from kconfig.ui import ui
 
 from .query import run_query
+from .utils import get_enclosing_configs
 
 
-def get_symbol_typedef(type_name: str) -> KconfigFieldType | None:
-    """Find a typedef for a symbol name inside the kernel.
+TYPEDEF_CACHE: dict[str, KconfigFieldType] = {}
+"""Cache holding typedef resolutions."""
 
-    If this method resolves a struct/union, it returns the entire object. To
-    fix this issue would require recursive resolution, which may prove annoying
-    with anonymous structures and unions.
+PRIMITIVE_TYPES = ["char", "int", "long", "short", "void"]
+"""Primitive types that we shouldn't try to typedef."""
 
-    TODO: Implement caching. This method slows down the process immensely.
+
+def get_typedef_configs(symbol: KconfigFieldType, to_match: str) -> KconfigFieldGuard:
+    """Get the configs that yield a certain resolved type.
+
+    Since any of the configs can yield that type, they are OR'ed together.
+
     """
-    for file in utils.find_candidate_struct_files(state.kernel_dir, type_name):
+    normal_match = utils.normalize_type(to_match)
+    if normal_match == utils.normalize_type(symbol.original_type):
+        return KconfigFieldGuard()  # Guaranteed state
+
+    guard = KconfigFieldGuard(operand="||")
+    for resolve in symbol.resolved_type:
+        if normal_match == utils.normalize_type(resolve.true_type) and resolve.depends:
+            guard.expression.append(resolve.depends)
+
+    if len(guard.expression) == 0:
+        return KconfigFieldGuard(is_enabled=False)  # Impossible state
+    return guard
+
+
+def get_symbol_typedef(type_name: str) -> KconfigFieldType:
+    """Find a typedef for a symbol name inside the kernel."""
+    normal_type = utils.normalize_type(type_name)
+
+    typedef = KconfigFieldType(type_name)
+    if normal_type in PRIMITIVE_TYPES:
+        return typedef
+
+    definitions = cache.get_typedef_locations(normal_type)
+    for file in definitions:
         contents = file.read_bytes()
-        for _, captures in run_query("typedef-find", contents):
-            typedef_name = utils.get_capture_text(captures, "typedef.name")
-            if not typedef_name:
+        for _, captures in run_query("typedef-list", contents):
+            typedef_key = utils.get_capture_text(captures, "typedef.name")
+            typedef_val = utils.get_capture_text(captures, "typedef.type")
+            if not (typedef_key and typedef_val):
                 continue
 
-            found_name = typedef_name[0].decode()
-            if found_name == type_name:
-                true_name = utils.get_capture_text(captures, "typedef.type")[0].decode()
-                ui.out_debug(f"Resolved alias: {type_name} -> {true_name}")
-                return KconfigFieldType(type_name, true_name)
+            if normal_type == typedef_key[0].decode():
+                typedef_node = captures["typedef.name"][0]
+                rel_file = file.relative_to(config.state.kernel_dir)
 
-    return None
+                # FIXME: This goes as high as the .h ifndef/define guards.
+                configs = get_enclosing_configs(typedef_node.parent)
+                typedef.resolved_type.append(KconfigResolvedType(typedef_val[0].decode(), rel_file, depends=configs))
+
+    ui.out_debug(f"Resolved: {type_name} -> {typedef}")
+    return typedef

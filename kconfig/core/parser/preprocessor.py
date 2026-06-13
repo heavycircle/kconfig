@@ -11,6 +11,15 @@ if TYPE_CHECKING:
 
 
 def negate_guard(guard: KconfigFieldGuard) -> KconfigFieldGuard:
+    """Negate the enabled status of a field guard.
+
+    Args:
+        guard (KconfigFieldGuard): The guard to negate.
+
+    Returns:
+        KconfigFieldGuard: The resulting negated guard.
+
+    """
     guard.is_enabled = False
     return guard
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from .compare import analyze_struct_tree
+from .kernel import find_struct_declaration
 from .module import get_module_struct
 
 
 __all__ = [
-    "analyze_struct_tree",
+    "find_struct_declaration",
     "get_module_struct",
 ]

@@ -7,12 +7,12 @@ from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentErr
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 from kconfig.ui import ui
 
+from .typedef import get_symbol_typedef
 from .utils import (
     get_enclosing_configs,
     get_field_identifier,
     get_true_type,
     get_type_identifier,
-    is_primitive_type,
 )
 
 
@@ -68,7 +68,7 @@ def parse_field_declaration(
         field_type = get_true_type(type_node, field_identifier)
         field_name = field_identifier.text.decode()
 
-        type_layout = KconfigFieldType(field_type)
+        type_layout = get_symbol_typedef(field_type)
         if type_node.type in ("struct_specifier", "union_specifier"):
             # Check for anonymous structs/unions with declarators.
             if type_node.child_by_field_name("body") is not None:
@@ -92,10 +92,6 @@ def parse_field_declaration(
             if recursive:
                 ui.out_debug(f" >> Recursing into custom field: {type_node.text.decode()}")
                 type_layout.layout = get_kernel_struct(type_name.text.decode(), recursive, visited)
-
-        # Non-structures that aren't primitive types are custom types.
-        elif not is_primitive_type(type_node):
-            ui.out_debug(f" >> Found typedef: {type_node.text.decode()} {field_name}")
 
         # Get configs enclosing these fields.
         configs = get_enclosing_configs(field_node)

@@ -10,7 +10,7 @@ class KconfigError(Exception):
     """Base exception class for all Kconfig CLI operations."""
 
     def __init__(self, msg: str) -> None:
-        frame = sys._getframe(2)
+        frame = sys._getframe(2)  # noqa: SLF001
 
         self.func_name = frame.f_code.co_name
         self.filename = Path(frame.f_code.co_filename).name

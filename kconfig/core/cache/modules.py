@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 from typing import TYPE_CHECKING
 
-from kconfig.core import cache, config, parser, utils
+from kconfig.core import config, parser, utils
 from kconfig.exceptions import KconfigSubprocessFailedError
 from kconfig.ui import ui
+
+from .config import CACHE_MODULE_DIR
 
 
 if TYPE_CHECKING:
@@ -15,9 +16,11 @@ if TYPE_CHECKING:
 
     from kconfig.types import KconfigStructFields
 
-MODULE_CACHE: dict[str, dict] = {}
 
-module_cache_file = cache.CACHE_MODULE_DIR / "module_layouts.json"
+MODULE_CACHE: dict[str, dict] = {}
+"""Cache containing module capabilities."""
+
+module_cache_file = CACHE_MODULE_DIR / "module_layouts.json"
 
 
 def cache_module_structs(ko_path: Path) -> dict[str, KconfigStructFields]:
@@ -75,6 +78,7 @@ def get_module_layout(ko_path: Path) -> dict[str, KconfigStructFields]:
 
 
 def load_module_cache() -> None:
+    """Load the module cache from disk, or build it if it's missing/invalid."""
     if not module_cache_file.exists():
         return
 
