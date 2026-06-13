@@ -3,11 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from kconfig.core.cache import CACHE_KERNEL_DIR
 from kconfig.exceptions import KconfigInvalidArgumentError, KconfigMissingArgumentError
-
-
-CACHE_DIR = Path.home() / ".cache" / "kconfig"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
@@ -40,7 +37,7 @@ class KconfigState:
         if version is None:
             raise KconfigMissingArgumentError("kernel_version")
 
-        kernel_dir = CACHE_DIR / "kernel" / f"linux-{version}"
+        kernel_dir = CACHE_KERNEL_DIR / f"linux-{version}"
         self._check_kernel_dir(kernel_dir)
 
         self._kernel_version = version

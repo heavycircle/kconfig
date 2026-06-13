@@ -10,15 +10,27 @@ from tree_sitter import Node
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from sympy import Expr
+
 
 KconfigQueryCapture = dict[str, list[Node]]
 """Captures for tree_sitter queries."""
 
 KconfigQueryResult = list[tuple[int, KconfigQueryCapture]]
-"""Results from tree_sitte queries."""
+"""Results from tree_sitter queries."""
 
 KconfigStructFields = dict[str, str]
 """Fields inside a structure. Represented as { name: type }."""
+
+
+@dataclass
+class KconfigResolvedType:
+    """A resolved type."""
+
+    true_type: str
+    file: Path
+
+    depends: KconfigFieldGuard | None = None
 
 
 @dataclass
@@ -26,8 +38,7 @@ class KconfigFieldType:
     """The type of a field within a struct."""
 
     original_type: str
-    resolved_type: str | None = None
-
+    resolved_type: list[KconfigResolvedType] = field(default_factory=list)
     layout: KconfigStruct | None = None
 
     @property
@@ -64,8 +75,8 @@ class KconfigFieldGuard:
             return s
 
         if self.is_expression:
-            return f"~({s})"
-        return f"~{s}"
+            return f"!({s})"
+        return f"!{s}"
 
 
 @dataclass
@@ -82,7 +93,8 @@ class KconfigStructField:
 class KconfigStruct:
     """A structure found inside the kernel."""
 
-    name: str
+    original_name: str
+    resolved_name: str
     file: Path
 
     fields: list[KconfigStructField] = field(default_factory=list)
@@ -129,12 +141,15 @@ class KconfigSignature:
 
 
 @dataclass
-class KconfigConfigEvidence:
+class KconfigEvidence:
     """Represent a single piece of evidence for a config state."""
 
     struct_name: str
     field_name: str
     is_enabled: bool
+
+    raw_guard: Expr
+    constraints: Expr
 
     def __str__(self) -> str:
         """Return a human-readable string describing this evidence.
@@ -151,47 +166,47 @@ class KconfigAnalysis:
     """Aggregate all evidence and automatically flags conflicts."""
 
     def __init__(self) -> None:
-        self.log: dict[str, list[KconfigConfigEvidence]] = defaultdict(list)
+        self.log: dict[str, list[KconfigEvidence]] = defaultdict(list)
 
-    def add_evidence(self, config_name: str, evidence: KconfigConfigEvidence) -> None:
+    def add_evidence(self, config_name: str, evidence: KconfigEvidence) -> None:
         """Add a config report to the log.
 
         Args:
             config_name (str): Name of the CONFIG option (e.g. ``CONFIG_FOO``).
-            evidence (KconfigConfigEvidence): Evidence entry to record.
+            evidence (KconfigEvidence): Evidence entry to record.
 
         """
         self.log[config_name].append(evidence)
 
     @property
-    def enabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
+    def enabled_configs(self) -> dict[str, list[KconfigEvidence]]:
         """Configs where ALL evidence points to True.
 
         Returns:
-            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its evidence list.
+            dict[str, list[KconfigEvidence]]: Mapping of config name to its evidence list.
 
         """
         return {k: v for k, v in self.log.items() if all(e.is_enabled for e in v)}
 
     @property
-    def disabled_configs(self) -> dict[str, list[KconfigConfigEvidence]]:
+    def disabled_configs(self) -> dict[str, list[KconfigEvidence]]:
         """Configs where ALL evidence points to False.
 
         Returns:
-            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its evidence list.
+            dict[str, list[KconfigEvidence]]: Mapping of config name to its evidence list.
 
         """
         return {k: v for k, v in self.log.items() if all(not e.is_enabled for e in v)}
 
     @property
-    def conflicts(self) -> dict[str, list[KconfigConfigEvidence]]:
+    def conflicts(self) -> dict[str, list[KconfigEvidence]]:
         """Configs where evidence contradicts itself (mixed True/False).
 
         Returns:
-            dict[str, list[KconfigConfigEvidence]]: Mapping of config name to its conflicting evidence list.
+            dict[str, list[KconfigEvidence]]: Mapping of config name to its conflicting evidence list.
 
         """
-        results: dict[str, list[KconfigConfigEvidence]] = {}
+        results: dict[str, list[KconfigEvidence]] = {}
         for config, evidence_list in self.log.items():
             states = {e.is_enabled for e in evidence_list}
             if len(states) > 1:

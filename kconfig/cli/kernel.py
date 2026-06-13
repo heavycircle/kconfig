@@ -7,7 +7,7 @@ import requests
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
 
-from kconfig.control_api import CACHE_DIR
+from kconfig.control_api import CACHE_KERNEL_DIR
 from kconfig.styling_api import render_kernel_version_table, ui
 
 
@@ -17,8 +17,7 @@ app = typer.Typer()
 @app.command("list")
 def kernel_list() -> None:
     """List the available cached kernels."""
-    kernel_dir = CACHE_DIR / "kernel"
-    versions = [p.name.replace("linux-", "") for p in kernel_dir.glob("linux-*") if p.is_dir()]
+    versions = [p.name.replace("linux-", "") for p in CACHE_KERNEL_DIR.glob("linux-*") if p.is_dir()]
 
     def version_sort(v: str) -> list[int]:
         try:
@@ -26,7 +25,7 @@ def kernel_list() -> None:
         except ValueError:
             return [0]
 
-    render_kernel_version_table(sorted(versions, key=version_sort, reverse=True), kernel_dir)
+    render_kernel_version_table(sorted(versions, key=version_sort, reverse=True), CACHE_KERNEL_DIR)
 
 
 @app.command("fetch")
@@ -39,11 +38,8 @@ def kernel_fetch(
     major = version.split(".", maxsplit=1)[0]
     url = f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version}.tar.xz"
 
-    kernel_dir = CACHE_DIR / "kernel"
-    kernel_dir.mkdir(parents=True, exist_ok=True)
-
-    tarball_path = kernel_dir / f"linux-{version}.tar.xz"
-    extract_dir = kernel_dir / f"linux-{version}"
+    tarball_path = CACHE_KERNEL_DIR / f"linux-{version}.tar.xz"
+    extract_dir = CACHE_KERNEL_DIR / f"linux-{version}"
     if extract_dir.exists():
         ui.out_info(f"Kernel {version} is already cached at {extract_dir}")
         return
@@ -72,7 +68,7 @@ def kernel_fetch(
 
         ui.out_info("Extracting tarball...")
         with tarfile.open(tarball_path, "r:xz") as tar:
-            tar.extractall(path=kernel_dir)
+            tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
 
         tarball_path.unlink()
         ui.out_success(f"Kernel {version} ready at {extract_dir}")

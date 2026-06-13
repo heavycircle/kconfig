@@ -8,7 +8,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.tree import Tree
 
-from kconfig.core import utils
+from kconfig.core import analysis
 
 from .logging import ui
 
@@ -53,13 +53,19 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> Renderab
             child. If ``None`` a new root tree is created and printed.
 
     """
-    title = f"[bold cyan]{struct.name}[/] [dim]({struct.file})[/]"
+    title = f"[bold cyan]{struct.original_name}[/]"
+    if struct.resolved_name != struct.original_name:
+        title += f" [dim italic] -> {struct.resolved_name}[/]"
+    title += f" [dim]({struct.file})[/]"
+
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
 
     for field in struct.fields:
         field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
         if field.depends:
-            field_text += f"[dim italic yellow] (Requires: {utils.simplify_config_expression(str(field.depends))})[/]"
+            field_text += (
+                f"[dim italic yellow] (Requires: {analysis.simplify_config_expression(str(field.depends))})[/]"
+            )
 
         if field.field_type.layout:
             field_node = tree.add(field_text)

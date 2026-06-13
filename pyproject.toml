@@ -40,6 +40,7 @@ ignore = [
     "EM101",   # Exceptions must not use a string literal
     "EM102",   # Exceptions must not use an f-string literal
     "FBT001",  # Boolean-typed positional argument in function definition
+    "FBT002",  # Boolean default positional argument in function definition
     "FBT003",  # Boolean positional value in function call
     "PLR2004", # Magic values in comparisons
     "PLW0603", # Using 'global' to edit globals

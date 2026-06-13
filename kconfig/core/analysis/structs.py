@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import sympy
+from rich.table import Table
+
+from kconfig.core import config, parser, structs
+from kconfig.exceptions import KconfigSymbolNotFoundError
+from kconfig.types import KconfigEvidence
+from kconfig.ui import ui
+
+from .guards import parse_config_guard
+
+
+if TYPE_CHECKING:
+    from kconfig.types import KconfigStruct
+
+EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
+"""Cache of structure names and their configuation evidence."""
+
+
+def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = None) -> list[KconfigEvidence]:
+    """Get all evidence for a struct.
+
+    This method parses the struct's fields, checking the config guards inside
+    the struct, comparing them to the provided modules. It must check both the
+    field presence and the type match to confirm the config is enabled or not.
+
+    This method always does a recursive parse of the structure. If --recursive
+    was not passed, the struct just won't have recursive elements.
+
+    This method requires state.module_dir be set.
+
+    Args:
+        struct (KconfigStruct): The struct to parse.
+        visited (set[str] | None): The set of visited structs.
+
+    Returns:
+        list[KconfigEvidence]: CONFIG evidence found inside this struct.
+
+    """
+    if visited is None:
+        visited = set()
+
+    # Check the cache, stop cycles.
+    name = struct.original_name
+    if name and name in visited:
+        ui.out_debug(f"Cycle detected: {name}")
+        return []
+    if name and name in EVALUATION_CACHE:
+        ui.out_debug(f"Cache hit: {name}")
+        return EVALUATION_CACHE[name]
+    if name:
+        visited.add(name)
+
+    try:
+        layout = structs.get_module_struct(config.state.module_dir, name) if name else {}
+    except KconfigSymbolNotFoundError as e:
+        ui.out_warning(f"{e}, skipping ...")
+        return []
+
+    evidence_list: list[KconfigEvidence] = []
+    for field in struct.fields:
+        if field.depends:
+            # Check for member presence.
+            raw_expr = parse_config_guard(str(field.depends))
+            has_match = field.field_name in layout
+
+            # Check for type matches.
+            if has_match:
+                guard = parser.get_typedef_configs(field.field_type, layout[field.field_name])
+                ui.out_info(f"Checking: {field.field_type.original_type} -> {layout[field.field_name]}: {guard!r}")
+
+            applied = raw_expr if has_match else sympy.Not(raw_expr)
+
+            evidence_list.append(
+                KconfigEvidence(
+                    name or "anonymous",
+                    f"{field.field_type.original_type} {field.field_name}",
+                    has_match,
+                    raw_expr,
+                    applied,
+                )
+            )
+
+        # Make recursive calls.
+        if field.field_type.layout is not None:
+            evidence_list.extend(gather_struct_evidence(field.field_type.layout, visited=visited))
+
+    if name:
+        visited.remove(name)
+        EVALUATION_CACHE[name] = evidence_list
+
+    return evidence_list
+
+
+def analyze_struct_tree(root_struct: KconfigStruct) -> None:
+    """Analyze a tree of structs and render a table of enabled configs.
+
+    Args:
+        root_struct (KconfigStruct): The struct to recursively parse.
+
+    """
+    evidence = gather_struct_evidence(root_struct)
+    if not evidence:
+        ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}")
+        return
+
+    constraints: dict[sympy.Expr, list[KconfigEvidence]] = {}
+    for e in evidence:
+        constraints.setdefault(e.constraints, []).append(e)
+
+    global_state = sympy.true
+    global_conflict = False
+
+    table = Table(f"Analysis: {root_struct.original_name}")
+    table.add_column("Field", style="cyan")
+    table.add_column("Status", style="magenta")
+    table.add_column("Constriant", style="yellow")
+    table.add_column("Cumulative State", style="green")
+
+    for con, ev in constraints.items():
+        ev_str = "\n".join({f"- {e}" for e in ev})
+
+        next_state = sympy.And(global_state, con)
+        if not sympy.satisfiable(next_state):
+            global_conflict = True
+            table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str)
+        else:
+            global_state = next_state
+            table.add_row(str(con), "[green]OK[/]", ev_str)
+
+    ui.out_info("Rendering table ...")
+    ui.raw.print(table)
+
+    ui.out_success(f"Final configuration: {global_state}")
+    if not global_conflict:
+        simple_state = sympy.simplify_logic(global_state, force=True)
+        ui.out_success(f"Simplified: {simple_state}")
+
+        models = sympy.satisfiable(global_state, all_models=True)
+        ui.out_success(f"Found {len(list(models))} valid configurations to satisfy these constraints.")

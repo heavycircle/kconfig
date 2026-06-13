@@ -27,21 +27,6 @@ KERNEL_MACROS = [
 KERNEL_MACRO_PATTERN = re.compile(r"(?<![a-zA-Z0-9_])(?:" + "|".join(KERNEL_MACROS) + r")(?![a-zA-Z0-9_])")
 """Regex pattern for matching kernel macros."""
 
-KERNEL_TYPE_ALIASES = {
-    "Elf_Sym": "Elf64_Sym",  # Assuming a 64-bit target module
-    "u8": "unsigned char",
-    "u16": "unsigned short",
-    "u32": "unsigned int",
-    "u64": "unsigned long long",
-    "s8": "signed char",
-    "s16": "short",
-    "s32": "int",
-    "s64": "long long",
-    "size_t": "unsigned long",
-    "ssize_t": "long",
-}
-"""Type aliases to use during comparison."""
-
 
 def normalize_field(field: str) -> str:
     """Normalize a field's whitespace.
@@ -82,18 +67,52 @@ def normalize_struct(code: bytes) -> bytes:
 
 
 def normalize_type(c_type: str) -> str:
-    """Normalize C types for comparison.
+    """Normalize a C type for comparison.
+
+    This method works for normalizing both ``pahole`` and tree-sitter types.
 
     Args:
-        c_type (str): Type to compare.
+        c_type (str): C type to normalize.
 
     Returns:
-        str: Normalized type.
+        str: Normalized C type for comparison.
 
     """
-    tokens = c_type.split()
-    normal_tokens = [KERNEL_TYPE_ALIASES.get(token, token) for token in tokens]
-    return " ".join(normal_tokens)
+    c_type = re.sub(r"\s+", "", c_type.strip())
+
+    # Isolate pointers/arrays
+    suffix_match = re.search(r"([\s\*\[\]0-9]+)$", c_type)
+    suffix = suffix_match.group(1).replace(" ", "") if suffix_match else ""
+    base_type = c_type[: len(suffix)] if suffix else c_type
+
+    # Check for irregular types
+    if base_type.startswith(("struct ", "union ", "enum ")):
+        return f"{base_type}{suffix}"
+    if base_type == "unsigned":
+        base_type = "unsigned int"
+
+    tokens = set(base_type.split())
+
+    # Resolved sign-ness
+    is_unsigned = "unsigned" in tokens
+    tokens.discard("signed")
+    tokens.discard("unsigned")
+
+    # Get sizes
+    if "long" in tokens:
+        base = "long long" if base_type.count("long") > 1 else "long"
+    elif "short" in tokens:
+        base = "short"
+    elif "char" in tokens:
+        base = "char"
+    elif "int" in tokens:
+        base = "int"
+    else:
+        return f"{base_type}{suffix}"
+
+    # Prepend unsigned flag
+    canonical_base = f"unsigned {base}" if is_unsigned else base
+    return f"{canonical_base}{suffix}"
 
 
 def sanitize_kernel_macros(code: bytes) -> bytes:

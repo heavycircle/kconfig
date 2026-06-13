@@ -10,7 +10,7 @@ from .logging import ui
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.types import KconfigAnalysis
+    from kconfig.types import KconfigAnalysis, KconfigFieldType
 
 
 def render_struct_comparison_table(result: KconfigAnalysis) -> None:
@@ -77,3 +77,21 @@ def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
 
     for version in versions:
         table.add_row(version, str(kernel_dir / f"linux-{version}"))
+
+
+def render_field_type_table(field: KconfigFieldType) -> None:
+    """Render a KconfigFieldType as a table."""
+    if not field.resolved_type:
+        ui.out_info(f"No resolved types: '{field.original_type}'")
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Original Type", justify="right", style="cyan")
+    table.add_column("Resolved Type", justify="left")
+    table.add_column("File", style="dim")
+    table.add_column("CONFIG Options", style="yellow")
+
+    for f in sorted(field.resolved_type, key=lambda i: (i.true_type, i.file)):
+        table.add_row(field.original_type, f.true_type, str(f.file), str(f.depends) or "")
+
+    ui.raw.print(table)
