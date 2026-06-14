@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigUnsupportedArgumentError
 from kconfig.types import KconfigFieldGuard
+from kconfig.ui import ui
 
 
 if TYPE_CHECKING:
@@ -24,6 +25,63 @@ def negate_guard(guard: KconfigFieldGuard) -> KconfigFieldGuard:
     return guard
 
 
+def parse_expression(node: Node) -> KconfigFieldGuard:
+    """Parse a generic expression node for all expression nodes."""
+    if node.type == "binary_expression":
+        return parse_binary_expression(node)
+    if node.type == "unary_expression":
+        return parse_unary_expression(node)
+    if node.type == "preproc_defined":
+        return parse_preproc_defined(node)
+    if node.type == "call_expression":
+        return parse_call_expression(node)
+    if node.type in ("identifier", "number_literal"):
+        return KconfigFieldGuard(name=node.text.decode())
+    if node.type == "parenthesized_expression":
+        inner_nodes = [c for c in node.children if c.is_named]
+        if not inner_nodes:
+            raise KconfigASTAnomalyError(node.type, "Empty parenthesized_expression")
+        return parse_expression(inner_nodes[0])
+
+    ui.out_debug(f"Unrecognized node: '{node.type}', treating as opaque ...")
+    return KconfigFieldGuard(node.text.decode())
+
+
+def get_previous_conditions(node: Node) -> KconfigFieldGuard:
+    """Walk up the tree to gather and negate preceeding if/elif conditions."""
+    current = node.parent
+
+    to_check: list[Node] = []
+    while current and not current.type.startswith("preproc_if"):
+        to_check.insert(0, current)
+        current = current.parent
+
+    if current:
+        to_check.insert(0, current)
+
+    guard = KconfigFieldGuard(operand="&&")
+    for prev_node in to_check:
+        guard.expression.append(negate_guard(parse_preproc(prev_node)))
+    return guard
+
+
+def parse_call_expression(call_node: Node) -> KconfigFieldGuard:
+    """Parse a call_expression node."""
+    if call_node.type != "call_expression":
+        raise KconfigInvalidArgumentError(call_node.type, "Not a call_expression")
+
+    func, args = call_node.children
+    func_name = func.text.decode()
+    if func_name not in ("IS_ENABLED", "IS_BUILTIN", "IS_MODULE", "IS_REACHABLE"):
+        # Return the function as an opaque variable
+        return KconfigFieldGuard(call_node.text.decode())
+
+    named_args = [child for child in args.children if child.is_named]
+    if not named_args:
+        raise KconfigASTAnomalyError(call_node.type, f"No arguments inside {func_name}()")
+    return KconfigFieldGuard(named_args[0].text.decode())
+
+
 def parse_unary_expression(expr_node: Node) -> KconfigFieldGuard:
     """Parse a unary_expression node to get the CONFIG underneath."""
     if expr_node.type != "unary_expression":
@@ -33,11 +91,8 @@ def parse_unary_expression(expr_node: Node) -> KconfigFieldGuard:
     if operator.type != "!":
         raise KconfigUnsupportedArgumentError(operator.type)
 
-    if argument.type == "preproc_defined":
-        return negate_guard(parse_preproc_defined(argument))
-    if argument.type == "identifier":
-        return negate_guard(KconfigFieldGuard(name=argument.text.decode()))
-    raise KconfigUnsupportedArgumentError(argument.type)
+    inner_guard = parse_expression(argument)
+    return negate_guard(inner_guard)
 
 
 def parse_binary_expression(expr_node: Node) -> KconfigFieldGuard:
@@ -49,22 +104,12 @@ def parse_binary_expression(expr_node: Node) -> KconfigFieldGuard:
         raise KconfigInvalidArgumentError(expr_node.type, "Not a binary_expression")
 
     left, operator, right = expr_node.children
-    if operator.type not in ("||", "&&", "!=", "==", ">", "<"):
+
+    valid_ops = ("||", "&&", "!=", "==", ">", "<", ">=", "<=", "&", "|", "^", "<<", ">>")
+    if operator.type not in valid_ops:
         raise KconfigUnsupportedArgumentError(operator.type)
 
-    configs: list[KconfigFieldGuard] = []
-    for side in (left, right):
-        if side.type == "binary_expression":
-            configs.append(parse_binary_expression(side))
-        elif side.type == "unary_expression":
-            configs.append(parse_unary_expression(side))
-        elif side.type == "preproc_defined":
-            configs.append(parse_preproc_defined(side))
-        elif side.type in ("identifier", "number_literal"):
-            configs.append(KconfigFieldGuard(name=side.text.decode(), is_enabled=True))
-        else:
-            raise KconfigUnsupportedArgumentError(side.type)
-
+    configs = [parse_expression(left), parse_expression(right)]
     return KconfigFieldGuard(operand=operator.type, expression=configs)
 
 
@@ -107,34 +152,10 @@ def parse_preproc_if(preproc_node: Node) -> KconfigFieldGuard:
     if not condition_node:
         raise KconfigASTAnomalyError(preproc_node.type, "Missing 'condition' field")
 
-    if condition_node.type == "binary_expression":
-        guard = parse_binary_expression(condition_node)
-    elif condition_node.type == "unary_expression":
-        guard = parse_unary_expression(condition_node)
-    elif condition_node.type == "preproc_defined":
-        guard = parse_preproc_defined(condition_node)
-    elif condition_node.type == "identifier":
-        guard = KconfigFieldGuard(name=condition_node.text.decode(), is_enabled=True)
-    else:
-        raise KconfigUnsupportedArgumentError(condition_node.type)
-
+    guard = parse_expression(condition_node)
     if preproc_node.type == "preproc_elif":
-        # Find the parent if/elif nodes.
-        current = preproc_node.parent
-        to_check: list[Node] = []
-        while current and not current.type.startswith("preproc_if"):
-            to_check.insert(0, current)
-            current = current.parent
-        if current:
-            to_check.insert(0, current)
-
-        # Get the configs and negate them.
-        above = KconfigFieldGuard(operand="&&")
-        for node in to_check:
-            above.expression.append(negate_guard(parse_preproc(node)))
-
-        # Add negated guards to this expression.
-        guard = KconfigFieldGuard(operand="&&", expression=[above, guard])
+        above_guard = get_previous_conditions(preproc_node)
+        guard = KconfigFieldGuard(operand="&&", expression=[above_guard, guard])
 
     return guard
 
@@ -144,19 +165,7 @@ def parse_preproc_else(preproc_node: Node) -> KconfigFieldGuard:
     if preproc_node.type != "preproc_else":
         raise KconfigInvalidArgumentError(preproc_node.type, "Not a preproc_else")
 
-    # TODO: Make a parse_above_if function with this.
-    current = preproc_node.parent
-    to_check: list[Node] = []
-    while current and not current.type.startswith("preproc_if"):
-        to_check.insert(0, current)
-        current = current.parent
-    if current:
-        to_check.insert(0, current)
-
-    guard = KconfigFieldGuard(operand="&&")
-    for node in to_check:
-        guard.expression.append(negate_guard(parse_preproc(node)))
-    return guard
+    return get_previous_conditions(preproc_node)
 
 
 def parse_preproc(preproc_node: Node) -> KconfigFieldGuard:

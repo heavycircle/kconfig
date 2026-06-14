@@ -117,7 +117,3 @@ class KconfigSubprocessFailedError(KconfigToolingError):
 
     def __init__(self, tool_name: str, stderr: str) -> None:
         super().__init__(f"Tool '{tool_name}' failed to execute:\n{stderr}")
-
-
-class KconfigAnalysisError(KconfigError):
-    """Base class for layout diffing and validation errors."""

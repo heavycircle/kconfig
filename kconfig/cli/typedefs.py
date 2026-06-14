@@ -3,7 +3,7 @@ from __future__ import annotations
 import typer
 
 from kconfig.control_api import build_kernel_cache, get_symbol_typedef, state
-from kconfig.styling_api import render_field_type_table, ui
+from kconfig.styling_api import render_field_type_table
 
 from .options import KernelOpt, SymbolOpt  # noqa: TC001
 
