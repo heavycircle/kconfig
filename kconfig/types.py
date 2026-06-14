@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from tree_sitter import Node
 
@@ -29,7 +28,6 @@ class KconfigResolvedType:
 
     true_type: str
     file: Path
-
     depends: KconfigFieldGuard | None = None
 
 
@@ -40,11 +38,6 @@ class KconfigFieldType:
     original_type: str
     resolved_type: list[KconfigResolvedType] = field(default_factory=list)
     layout: KconfigStruct | None = None
-
-    @property
-    def is_complex(self) -> bool:
-        """Check if this field type is anonymous/inline."""
-        return self.layout is not None
 
 
 @dataclass
@@ -63,6 +56,21 @@ class KconfigFieldGuard:
     def is_expression(self) -> bool:
         """Check if this guard is an expression or a leaf node."""
         return self.operand is not None
+
+    @property
+    def is_impossible(self) -> bool:
+        """Check if this guard is impossible to satisfy (sympy.false)."""
+        return self.is_enabled is False and len(self.expression) == 0
+
+    @property
+    def is_guaranteed(self) -> bool:
+        """Check if this guard is always valid (sympy.true)."""
+        return self.is_enabled and len(self.expression) == 0
+
+    @property
+    def is_conditional(self) -> bool:
+        """Check if this guard is conditionally true."""
+        return not (self.is_impossible or self.is_guaranteed)
 
     def __str__(self) -> str:
         """Print the guard."""
@@ -151,64 +159,14 @@ class KconfigEvidence:
     raw_guard: Expr
     constraints: Expr
 
+    # Type-based evidence support
+    kind: Literal["field", "type"] = "field"
+    type: str | None = None
+
     def __str__(self) -> str:
-        """Return a human-readable string describing this evidence.
+        """Return a human-readable string describing this evidence."""
+        if self.kind == "type":
+            return f"Type of '{self.field_name}' matched '{self.type}' in '{self.struct_name}'"
 
-        Returns:
-            str: Evidence description including struct name, field name, and state.
-
-        """
         verb = "Found" if self.is_enabled else "Missing"
         return f"{verb} '{self.field_name}' in '{self.struct_name}'"
-
-
-class KconfigAnalysis:
-    """Aggregate all evidence and automatically flags conflicts."""
-
-    def __init__(self) -> None:
-        self.log: dict[str, list[KconfigEvidence]] = defaultdict(list)
-
-    def add_evidence(self, config_name: str, evidence: KconfigEvidence) -> None:
-        """Add a config report to the log.
-
-        Args:
-            config_name (str): Name of the CONFIG option (e.g. ``CONFIG_FOO``).
-            evidence (KconfigEvidence): Evidence entry to record.
-
-        """
-        self.log[config_name].append(evidence)
-
-    @property
-    def enabled_configs(self) -> dict[str, list[KconfigEvidence]]:
-        """Configs where ALL evidence points to True.
-
-        Returns:
-            dict[str, list[KconfigEvidence]]: Mapping of config name to its evidence list.
-
-        """
-        return {k: v for k, v in self.log.items() if all(e.is_enabled for e in v)}
-
-    @property
-    def disabled_configs(self) -> dict[str, list[KconfigEvidence]]:
-        """Configs where ALL evidence points to False.
-
-        Returns:
-            dict[str, list[KconfigEvidence]]: Mapping of config name to its evidence list.
-
-        """
-        return {k: v for k, v in self.log.items() if all(not e.is_enabled for e in v)}
-
-    @property
-    def conflicts(self) -> dict[str, list[KconfigEvidence]]:
-        """Configs where evidence contradicts itself (mixed True/False).
-
-        Returns:
-            dict[str, list[KconfigEvidence]]: Mapping of config name to its conflicting evidence list.
-
-        """
-        results: dict[str, list[KconfigEvidence]] = {}
-        for config, evidence_list in self.log.items():
-            states = {e.is_enabled for e in evidence_list}
-            if len(states) > 1:
-                results[config] = evidence_list
-        return results

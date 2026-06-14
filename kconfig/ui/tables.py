@@ -10,52 +10,7 @@ from .logging import ui
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.types import KconfigAnalysis, KconfigFieldType
-
-
-def render_struct_comparison_table(result: KconfigAnalysis) -> None:
-    """Render the struct comparison result as Rich tables to the terminal.
-
-    Args:
-        result (KconfigAnalysis): Aggregated analysis containing enabled, disabled,
-            and conflicting CONFIG evidence.
-
-    """
-    config_table = Table(show_header=True, header_style="bold magenta")
-    config_table.add_column("CONFIG Option")
-    config_table.add_column("State", justify="center")
-    config_table.add_column("Primary Evidence")
-    config_table.add_column("Matches", justify="center")
-
-    for cfg, matches in result.enabled_configs.items():
-        config_table.add_row(cfg, "[bold green]ENABLED[/bold green]", str(matches[0]), str(len(matches)))
-    for cfg, matches in result.disabled_configs.items():
-        config_table.add_row(cfg, "[dim]DISABLED[/dim]", str(matches[0]), str(len(matches)))
-
-    ui.raw.print(config_table)
-
-    if result.conflicts:
-        ui.raw.print("")
-
-        conflict_table = Table(
-            title="[bold red]CONFLICTS DETECTED[/bold red]",
-            show_header=True,
-            header_style="bold red",
-            border_style="red",
-        )
-        conflict_table.add_column("CONFIG Flag", style="bold yellow")
-        conflict_table.add_column("Contradictory Evidence")
-
-        for cfg, evidence_list in result.conflicts.items():
-            evidence_strings: list[str] = []
-            for ev in evidence_list:
-                color = "green" if ev.is_enabled else "red"
-                evidence_strings.append(f"[{color}]{ev}[/{color}]")
-
-            combined_evidence = "\n".join(evidence_strings)
-            conflict_table.add_row(cfg, combined_evidence)
-
-        ui.raw.print(conflict_table)
+    from kconfig.types import KconfigFieldType
 
 
 def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
