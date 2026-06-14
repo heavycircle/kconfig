@@ -49,7 +49,7 @@ def parse_binary_expression(expr_node: Node) -> KconfigFieldGuard:
         raise KconfigInvalidArgumentError(expr_node.type, "Not a binary_expression")
 
     left, operator, right = expr_node.children
-    if operator.type not in ("||", "&&", "==", ">", "<"):
+    if operator.type not in ("||", "&&", "!=", "==", ">", "<"):
         raise KconfigUnsupportedArgumentError(operator.type)
 
     configs: list[KconfigFieldGuard] = []

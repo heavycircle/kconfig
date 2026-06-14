@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import json
 import subprocess
 from typing import TYPE_CHECKING
@@ -95,15 +96,17 @@ def load_module_cache() -> None:
 
 
 def build_module_struct_cache() -> None:
-    """Refresh the on-disk layout cache for all ``.ko`` files under ``module_root``."""
+    """Refresh the on-disk cache for all ``.ko`` and ``vmlinux`` files."""
     load_module_cache()
 
-    ko_files = list(config.state.module_dir.rglob("*.ko"))
-    if not ko_files:
+    ko_files = config.state.module_dir.rglob("*.ko")
+    vmlinux_files = list(config.state.module_dir.rglob("vmlinux"))
+    target_files = list(itertools.chain(ko_files, vmlinux_files))
+    if not target_files:
         ui.out_warning(f"No .ko files found in {config.state.module_dir}")
         return
 
-    for file in ko_files:
+    for file in target_files:
         get_module_layout(file)
 
     with module_cache_file.open("w") as f:

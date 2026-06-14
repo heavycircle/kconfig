@@ -99,4 +99,8 @@ def find_candidate_kernel_modules(module_root: Path, symbol_name: str) -> Genera
         Path: ``.ko`` files whose binary content references ``symbol_name``.
 
     """
-    return _scan_files_priority([(module_root, "*.ko")], symbol_name)
+    phrases = [
+        (module_root, "vmlinux"),
+        (module_root, "*.ko"),
+    ]
+    return _scan_files_priority(phrases, symbol_name)

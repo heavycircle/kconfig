@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from kconfig.exceptions import KconfigASTAnomalyError
+from kconfig.ui import ui
 
 
 if TYPE_CHECKING:
@@ -29,10 +30,17 @@ def get_capture_nodes(captures: KconfigQueryCapture, key: str) -> list[Node]:
     nodes = captures.get(key)
     if not nodes:
         raise KconfigASTAnomalyError(key, "Capture group missing from query results.")
-    if not all(n.text for n in nodes):
-        raise KconfigASTAnomalyError(key, "Some nodes contain no text payload.")
 
-    return nodes
+    valid_nodes: list[Node] = []
+    for n in nodes:
+        if n.text:
+            valid_nodes.append(n)
+        elif n.is_missing:
+            ui.out_debug("Skipping tree-sitter MISSING node (likely a macro typedef)")
+        else:
+            raise KconfigASTAnomalyError(key, "Node contains no text payload.")
+
+    return valid_nodes
 
 
 def get_capture_text(captures: KconfigQueryCapture, key: str) -> list[bytes]:
