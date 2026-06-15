@@ -50,3 +50,25 @@ def render_field_type_table(field: KconfigFieldType) -> None:
         table.add_row(field.original_type, f.true_type, str(f.file), str(f.depends) or "")
 
     ui.raw.print(table)
+
+
+def render_config_diff(current_config: dict[str, bool], computed_config: dict[str, bool]) -> None:
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("CONFIG Option", style="cyan")
+    table.add_column("Status")
+    table.add_column("Notes", style="dim")
+
+    for config, is_set in computed_configs.items():
+        config_str = str(config)
+        if not config_str.startswith("CONFIG_"):
+            continue
+
+        computed_set = current_config.get(config_str, False)
+        if is_set == computed_set:
+            continue
+
+        enable_str = "[bold green]Enabled[/]" if is_set else "[bold red]Disabled[/]"
+        reason_str = "Incorrect" if config_str in current_config else "Missing"
+        table.add_row(config_str, enable_str, f"{reason_str} in current .config")
+
+    ui.raw.print(table)
