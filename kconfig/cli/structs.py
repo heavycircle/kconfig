@@ -7,7 +7,7 @@ from kconfig.core.cache import build_kernel_cache
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import render_struct, ui
 
-from .options import KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
+from .options import ConfigOpt, KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
 
 
 app = typer.Typer()
@@ -30,7 +30,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
 
 
 @app.command("compare")
-def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False) -> None:
+def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, config: ConfigOpt, recursive: RecursiveOpt = False) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""
     state.kernel_version = kernel
     state.module_dir = modules
@@ -41,4 +41,4 @@ def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, rec
         raise KconfigSymbolNotFoundError(symbol, state.kernel_dir.name)
 
     build_module_struct_cache()
-    analyze_struct_tree(kernel_struct)
+    analyze_struct_tree(kernel_struct, current=current)
