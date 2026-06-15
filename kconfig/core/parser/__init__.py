@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .config import parse_config_file
 from .declaration import get_kernel_struct, parse_struct_specifier
 from .preprocessor import parse_preproc
 from .query import run_node_query, run_query
@@ -16,6 +17,7 @@ __all__ = [
     "get_typedef_configs",
     "is_direct_member",
     "is_primitive_type",
+    "parse_config_file",
     "parse_preproc",
     "parse_struct_specifier",
     "run_node_query",
