@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from kconfig.core.cache import CACHE_KERNEL_DIR
 from kconfig.exceptions import KconfigInvalidArgumentError, KconfigMissingArgumentError
+
+from .cache import CACHE_KERNEL_DIR
 
 
 @dataclass

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core.structs.kernel import find_struct_declaration
+from kconfig.core import structs
 from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigSymbolNotFoundError
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 from kconfig.ui import ui
@@ -166,7 +166,7 @@ def get_kernel_struct(
     visited.add(struct_name)
 
     try:
-        root_node, struct_info = find_struct_declaration(struct_name)
+        root_node, struct_info = structs.find_struct_declaration(struct_name)
         struct_info.fields = parse_struct_specifier(root_node, struct_info.file, recursive, visited)
         STRUCT_LAYOUT_CACHE[struct_name] = struct_info
         return struct_info

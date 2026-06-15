@@ -26,29 +26,54 @@ def negate_guard(guard: KconfigFieldGuard) -> KconfigFieldGuard:
 
 
 def parse_expression(node: Node) -> KconfigFieldGuard:
-    """Parse a generic expression node for all expression nodes."""
-    if node.type == "binary_expression":
-        return parse_binary_expression(node)
-    if node.type == "unary_expression":
-        return parse_unary_expression(node)
-    if node.type == "preproc_defined":
-        return parse_preproc_defined(node)
-    if node.type == "call_expression":
-        return parse_call_expression(node)
-    if node.type in ("identifier", "number_literal"):
-        return KconfigFieldGuard(name=node.text.decode())
-    if node.type == "parenthesized_expression":
-        inner_nodes = [c for c in node.children if c.is_named]
-        if not inner_nodes:
-            raise KconfigASTAnomalyError(node.type, "Empty parenthesized_expression")
-        return parse_expression(inner_nodes[0])
+    """Parse a generic expression node for all expression nodes.
 
-    ui.out_debug(f"Unrecognized node: '{node.type}', treating as opaque ...")
-    return KconfigFieldGuard(node.text.decode())
+    If this method cannot resolve the preprocessor guard at this node,
+    it returns an opaque variable sympy can use inside its boolean
+    expression.
+
+    Args:
+        node (Node): Node to parse.
+
+    Returns:
+        KconfigFieldGuard: The guard surrounding this field.
+
+    """
+    guard: KconfigFieldGuard | None = None
+
+    match node.type:
+        case "binary_expression":
+            guard = parse_binary_expression(node)
+        case "unary_expression":
+            guard = parse_unary_expression(node)
+        case "preproc_defined":
+            guard = parse_preproc_defined(node)
+        case "call_expression":
+            guard = parse_call_expression(node)
+        case "identifier" | "number_literal":
+            guard = KconfigFieldGuard(name=node.text.decode())
+        case "parenthesized_expression":
+            inner_nodes = [c for c in node.children if c.is_named]
+            if not inner_nodes:
+                raise KconfigASTAnomalyError(node.type, "Empty parenthesized_expression")
+            guard = parse_expression(inner_nodes[0])
+        case _:
+            ui.out_debug(f"Unrecognized node: '{node.type}', treating as opaque ...")
+            guard = KconfigFieldGuard(node.text.decode())
+
+    return guard
 
 
 def get_previous_conditions(node: Node) -> KconfigFieldGuard:
-    """Walk up the tree to gather and negate preceeding if/elif conditions."""
+    """Walk up the tree to gather and negate preceeding if/elif conditions.
+
+    Args:
+        node (Node): Base node to walk from.
+
+    Returns:
+        KconfigFieldGuard: Guard containing negated configs before this field.
+
+    """
     current = node.parent
 
     to_check: list[Node] = []
