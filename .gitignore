@@ -1,6 +1,5 @@
 # Test files
-/linux-*/
-/linux-*.tar.[xg]z
+/linux-*
 *.ko
 *.prof
 /modules/
