@@ -8,7 +8,7 @@ from rich.table import Table
 from kconfig.core import config, parser, structs
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigEvidence
-from kconfig.ui import ui
+from kconfig.ui import render_config_diff, ui
 
 from .guards import parse_config_guard
 
@@ -46,10 +46,8 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     # Check the cache, stop cycles.
     name = struct.original_name
     if name and name in visited:
-        ui.out_debug(f"Cycle detected: {name}")
         return []
     if name and name in EVALUATION_CACHE:
-        ui.out_debug(f"Cache hit: {name}")
         return EVALUATION_CACHE[name]
     if name:
         visited.add(name)
@@ -102,6 +100,9 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
                     applied,
                 )
             )
+
+        if not has_match and not field.depends:
+            ui.out_warning(f"Uncontrollable field missing in '{struct.original_name}': '{field.field_name}'")
 
         # Make recursive calls.
         if field.field_type.layout is not None:
@@ -156,11 +157,16 @@ def analyze_struct_tree(root_struct: KconfigStruct) -> None:
 
     if global_conflict:
         ui.out_error("Impossible layout! Conflicting requirements detected.")
-    else:
-        # Since we used simplify_logic inside the loop, global_state is already simplified!
-        ui.out_success(f"Final Required Configuration: {global_state}")
+        return
+    
+    ui.out_success(f"Final Required Configuration: {global_state}")
+    models = list(sympy.satisfiable(global_state, all_models=True))
+    first_model = next(models, None)
+    ui.out_success(f"Found {len(models) + 1} valid configurations to satisfy these constriants.")
 
-        # Calculate exact valid combinations
-        models = list(sympy.satisfiable(global_state, all_models=True))
-        if models and models[0] is not False:
-            ui.out_success(f"Found {len(models)} valid configurations to satisfy these constriants.")
+    if current and first_model:
+        current_config = parser.parse_config_file(current)
+
+        ui.out_info("Rendering diff ...")
+        render_config_diff(current_config, first_model)
+        
