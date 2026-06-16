@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-06-15
+## [1.0.0] - 2026-05-16
 
 ### Added
 
@@ -18,8 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This project is mostly tested on Linux 3.3 and Linux 5.15. Other versions
   require testing to uncover issues in parsing the kernel.
 
+### Changed
+
+- Start following [SemVer] properly.
+
+## [0.1.0] - 2026-06-15
+
+### Added
+
+- Created a base Python project for running tree-sitter queries on the Linux
+  kernel source.
+
 [unreleased]: https://github.com/heavycircle/kconfig/compare/v0.1.0...HEAD
-<!-- [1.0.0]: https://github.com/heavycircle/kconfig/compare/v0.1.0...v1.0.0 -->
+[1.0.0]: https://github.com/heavycircle/kconfig/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/heavycircle/kconfig/releases/tag/v0.1.0
 [SemVer]: https://semver.org
 [@heavycircle]: https://github.com/heavycircle
