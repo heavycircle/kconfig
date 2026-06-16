@@ -8,7 +8,6 @@ from kconfig.ui import ui
 
 from .config import CACHE_STRUCT_DIR
 
-
 if TYPE_CHECKING:
     from pathlib import Path
 

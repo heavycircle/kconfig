@@ -5,11 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "kconfig"
 version = "0.1.0"
-description = "Reverse kernel .config files."
+description = "Reverse-engineer kernel .config files."
+authors = [{ name = "heavycircle" }]
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = [
     "requests>=2.34.2",
+    "rich>=15.0.0",
     "sympy>=1.14.0",
     "tree-sitter>=0.25.2",
     "tree-sitter-c>=0.24.2",
@@ -31,6 +34,13 @@ kconfig = "kconfig.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["kconfig"]
 
+# --- Deptry ---------------------------------------------------
+
+[tool.deptry]
+known_first_party = ["kconfig"]
+
+# --- Ruff -----------------------------------------------------
+
 [tool.ruff]
 target-version = "py310"
 line-length = 120
@@ -48,6 +58,7 @@ ignore = [
     "FBT001",  # Boolean-typed positional argument in function definition
     "FBT002",  # Boolean default positional argument in function definition
     "FBT003",  # Boolean positional value in function call
+    "FIX002",  # Line contains TODO, consider resolving the issue
     "PLR2004", # Magic values in comparisons
     "PLW0603", # Using 'global' to edit globals
     "TRY003",  # Avoid specifying long messages outside the exception class
@@ -57,7 +68,6 @@ ignore = [
 combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["kconfig"]
-lines-after-imports = 2
 required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.pydocstyle]

@@ -6,7 +6,6 @@ from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentErr
 from kconfig.types import KconfigFieldGuard
 from kconfig.ui import ui
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 
@@ -65,7 +64,7 @@ def parse_expression(node: Node) -> KconfigFieldGuard:
 
 
 def get_previous_conditions(node: Node) -> KconfigFieldGuard:
-    """Walk up the tree to gather and negate preceeding if/elif conditions.
+    """Walk up the tree to gather and negate preceding if/elif conditions.
 
     Args:
         node (Node): Base node to walk from.

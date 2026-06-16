@@ -6,7 +6,6 @@ from rich.table import Table
 
 from .logging import ui
 
-
 if TYPE_CHECKING:
     from pathlib import Path
 

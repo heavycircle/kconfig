@@ -11,7 +11,6 @@ from kconfig.ui import ui
 
 from .config import CACHE_MODULE_DIR
 
-
 if TYPE_CHECKING:
     from kconfig.types import KconfigStructField
 

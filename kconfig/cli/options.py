@@ -4,7 +4,6 @@ from typing import Annotated
 
 from typer import Argument, Option
 
-
 ConfigOpt = Annotated[
     str | None,
     Option("-c", "--current", help="Current .config. Only reports incorrect settings."),

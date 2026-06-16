@@ -12,12 +12,11 @@ from kconfig.ui import render_config_diff_table, ui
 
 from .guards import parse_config_guard
 
-
 if TYPE_CHECKING:
     from kconfig.types import KconfigStruct
 
 EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
-"""Cache of structure names and their configuation evidence."""
+"""Cache of structure names and their configuration evidence."""
 
 
 def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = None) -> list[KconfigEvidence]:
@@ -166,7 +165,7 @@ def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None) 
 
     ui.out_success(f"Final Required Configuration: {global_state}")
     models = list(sympy.satisfiable(global_state, all_models=True))
-    ui.out_success(f"Found {len(models)} valid configurations to satisfy these constriants.")
+    ui.out_success(f"Found {len(models)} valid configurations to satisfy these constraints.")
 
     if current and models[0]:
         current_config = parser.parse_config_file(current)

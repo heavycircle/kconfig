@@ -5,7 +5,6 @@ from typing import Any
 from rich.console import Console
 from rich.theme import Theme
 
-
 KCONFIG_THEME = Theme(
     {
         "debug": "dim italic",

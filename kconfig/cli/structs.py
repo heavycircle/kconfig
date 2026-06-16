@@ -9,7 +9,6 @@ from kconfig.styling_api import render_struct, ui
 
 from .options import ConfigOpt, KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
 
-
 app = typer.Typer()
 
 
@@ -29,8 +28,8 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
         ui.out_info(f"Found {struct.dependencies} dependencies!")
 
 
-@app.command("compare")
-def struct_compare(
+@app.command("analyze")
+def struct_analyze(
     kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, current: ConfigOpt = None, recursive: RecursiveOpt = False
 ) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""

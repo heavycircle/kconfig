@@ -1,7 +1,6 @@
 # Test files
 /linux-*
 *.ko
-*.prof
 /modules/
 
 # Byte-compiled files
@@ -14,7 +13,10 @@ __pycache__/
 dist/
 *.egg-info
 
-# Virtual environments
+# Performance Testing
+*.prof
+
+# Virtual Environments
 .venv/
 venv/
 

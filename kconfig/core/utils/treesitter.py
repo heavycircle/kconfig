@@ -8,7 +8,6 @@ from kconfig.types import KconfigStructFields
 
 from .nodes import get_capture_nodes
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 

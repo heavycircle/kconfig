@@ -9,7 +9,6 @@ from kconfig.styling_api import ui
 
 from . import config, kernel, structs, symbols, typedefs
 
-
 app = typer.Typer(help="Kconfig is a CLI application for reverse-engineering kernel .config configurations.")
 app.add_typer(config.app, name="config", help="Inspect kernel configurations.")
 app.add_typer(kernel.app, name="kernel", help="Manage local kernel versions.")

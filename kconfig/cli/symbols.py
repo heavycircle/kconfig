@@ -7,7 +7,6 @@ from kconfig.styling_api import ui
 
 from .options import KernelOpt, SymbolOpt  # noqa: TC001
 
-
 app = typer.Typer()
 
 

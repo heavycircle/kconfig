@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, cast
 from kconfig.exceptions import KconfigASTAnomalyError
 from kconfig.ui import ui
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 

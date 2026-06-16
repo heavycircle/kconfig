@@ -7,7 +7,6 @@ import typer
 from kconfig.control_api import get_kernel_struct
 from kconfig.styling_api import ui
 
-
 app = typer.Typer()
 
 

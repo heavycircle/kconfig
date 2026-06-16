@@ -15,7 +15,6 @@ from .utils import (
     get_type_identifier,
 )
 
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -42,7 +41,7 @@ def parse_field_declaration(
         # Structure with a body -> anonymous
         has_body = type_node.child_by_field_name("body")
         if type_node.type in ("struct_specifier", "union_specifier") and has_body:
-            # TODO: struct_specifier should never hit here
+            # TODO (heavycircle): struct_specifier should never hit here
             base_name = f"anonymous {type_node.type.split('_')[0]}"
             ui.out_debug(f" >> Recursing into {base_name}: unnamed")
 

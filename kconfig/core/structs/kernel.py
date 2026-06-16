@@ -6,7 +6,6 @@ from kconfig.core import cache, config, parser, utils
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.ui import ui
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 

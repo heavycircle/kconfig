@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Literal
 
 from tree_sitter import Node
 
-
 if TYPE_CHECKING:
     from pathlib import Path
 

@@ -10,7 +10,6 @@ from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, Te
 from kconfig.control_api import CACHE_KERNEL_DIR
 from kconfig.styling_api import render_kernel_version_table, ui
 
-
 app = typer.Typer()
 
 

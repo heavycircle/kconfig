@@ -8,7 +8,6 @@ from kconfig.types import KconfigCustomMembers, KconfigFieldGuard
 from .preprocessor import parse_preproc
 from .query import run_node_query
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 

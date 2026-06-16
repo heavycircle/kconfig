@@ -8,7 +8,6 @@ import tree_sitter_c
 
 from kconfig.exceptions import KconfigFileInvalidError, KconfigFileNotFoundError, KconfigQuerySyntaxError
 
-
 if TYPE_CHECKING:
     from tree_sitter import Node
 

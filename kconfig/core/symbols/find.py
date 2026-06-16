@@ -8,7 +8,6 @@ from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigSignature
 from kconfig.ui import ui
 
-
 if TYPE_CHECKING:
     from pathlib import Path
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 CACHE_DIR = Path.home() / ".cache" / "kconfig"
 """Base directory for this project's cache."""
 

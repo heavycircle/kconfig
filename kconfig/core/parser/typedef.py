@@ -7,7 +7,6 @@ from kconfig.ui import ui
 from .query import run_query
 from .utils import get_enclosing_configs
 
-
 TYPEDEF_CACHE: dict[str, KconfigFieldType] = {}
 """Cache holding typedef resolutions."""
 
@@ -59,7 +58,7 @@ def get_symbol_typedef(type_name: str) -> KconfigFieldType:
                 typedef_node = captures["typedef.name"][0]
                 rel_file = file.relative_to(config.state.kernel_dir)
 
-                # FIXME: This goes as high as the .h ifndef/define guards.
+                # TODO (heavycircle): This goes as high as the .h ifndef/define guards.
                 configs = get_enclosing_configs(typedef_node.parent)
                 typedef.resolved_type.append(KconfigResolvedType(f"{found_val}{suffix}", rel_file, depends=configs))
 
