@@ -1,0 +1,32 @@
+# Test files
+/linux-*
+*.ko
+/modules/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution
+.*cache/
+dist/
+*.egg-info
+
+# Performance Testing
+*.prof
+
+# Virtual Environments
+.venv/
+venv/
+
+# Coverage
+.coverage*
+htmlcov/
+coverage.xml
+junit.xml
+
+# IDE Files
+.idea/
+.vscode/
+*.sw[op]
