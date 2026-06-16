@@ -24,7 +24,7 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
         raise KconfigSymbolNotFoundError(symbol, state.kernel_dir.name)
 
     ui.out_info(f"Rendering struct: {symbol}")
-    ui.raw.print(render_struct(struct))
+    render_struct(struct)
     if recursive:
         ui.out_info(f"Found {struct.dependencies} dependencies!")
 

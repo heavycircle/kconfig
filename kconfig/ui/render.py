@@ -39,7 +39,7 @@ def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.k
         return func(*args, **kwargs)
 
 
-def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> RenderableType:
+def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
     """Print a structure tree to the console.
 
     Recursively renders nested structs as sub-branches. When ``parent`` is
@@ -69,7 +69,8 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> Renderab
         else:
             tree.add(field_text)
 
-    return tree
+    if not parent:
+        ui.raw.print(tree)
 
 
 def render_signature(sig: KconfigSignature) -> None:
