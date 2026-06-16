@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 import sympy
 from rich.table import Table
 
-from kconfig.core import config, parser, structs
+from kconfig.core import parser, structs
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigEvidence
-from kconfig.ui import ui
+from kconfig.ui import render_config_diff_table, ui
 
 from .guards import parse_config_guard
 
@@ -46,32 +46,49 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     # Check the cache, stop cycles.
     name = struct.original_name
     if name and name in visited:
-        ui.out_debug(f"Cycle detected: {name}")
         return []
     if name and name in EVALUATION_CACHE:
-        ui.out_debug(f"Cache hit: {name}")
         return EVALUATION_CACHE[name]
     if name:
         visited.add(name)
 
     try:
-        layout = structs.get_module_struct(config.state.module_dir, name) if name else {}
+        layout = structs.get_module_struct(name)
     except KconfigSymbolNotFoundError as e:
         ui.out_warning(f"{e}, skipping ...")
         return []
 
     evidence_list: list[KconfigEvidence] = []
     for field in struct.fields:
+        has_match = field.field_name in layout
+
+        if has_match:
+            module_type = layout[field.field_name]
+
+            # Check this field's type
+            type_guard = parser.get_typedef_configs(field.field_type, module_type)
+            if type_guard.is_impossible:
+                ui.out_warning(f"Impossible: Cannot match types ({field.field_name}): {module_type}")
+                continue
+
+            if type_guard.is_conditional:
+                type_expr = parse_config_guard(str(type_guard))
+                evidence_list.append(
+                    KconfigEvidence(
+                        name or "anonymous",
+                        f"{field.field_type.original_type} {field.field_name}",
+                        True,
+                        type_expr,
+                        type_expr,
+                        kind="type",
+                        type=layout[field.field_name],
+                    )
+                )
+
         if field.depends:
             # Check for member presence.
             raw_expr = parse_config_guard(str(field.depends))
             has_match = field.field_name in layout
-
-            # Check for type matches.
-            if has_match:
-                guard = parser.get_typedef_configs(field.field_type, layout[field.field_name])
-                ui.out_info(f"Checking: {field.field_type.original_type} -> {layout[field.field_name]}: {guard!r}")
-
             applied = raw_expr if has_match else sympy.Not(raw_expr)
 
             evidence_list.append(
@@ -84,6 +101,9 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
                 )
             )
 
+        if not has_match and not field.depends:
+            ui.out_warning(f"Uncontrollable field missing in '{struct.original_name}': '{field.field_name}'")
+
         # Make recursive calls.
         if field.field_type.layout is not None:
             evidence_list.extend(gather_struct_evidence(field.field_type.layout, visited=visited))
@@ -95,16 +115,21 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     return evidence_list
 
 
-def analyze_struct_tree(root_struct: KconfigStruct) -> None:
+def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None) -> None:
     """Analyze a tree of structs and render a table of enabled configs.
+
+    This method aims to complete. On error, it will print the error and keep
+    running. These errors either mean an error in the parsing of the kernel
+    or modules.
 
     Args:
         root_struct (KconfigStruct): The struct to recursively parse.
+        current (str | None): Path to a .config file for rendering a diff.
 
     """
     evidence = gather_struct_evidence(root_struct)
     if not evidence:
-        ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}")
+        ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}'")
         return
 
     constraints: dict[sympy.Expr, list[KconfigEvidence]] = {}
@@ -114,30 +139,37 @@ def analyze_struct_tree(root_struct: KconfigStruct) -> None:
     global_state = sympy.true
     global_conflict = False
 
-    table = Table(f"Analysis: {root_struct.original_name}")
-    table.add_column("Field", style="cyan")
-    table.add_column("Status", style="magenta")
-    table.add_column("Constriant", style="yellow")
+    table = Table(title=f"Analysis: {root_struct.original_name}")
+    table.add_column("Applied Constraint", style="yellow")
+    table.add_column("Status", justify="center")
+    table.add_column("Evidence & Raw Guard", style="cyan")
     table.add_column("Cumulative State", style="green")
 
-    for con, ev in constraints.items():
-        ev_str = "\n".join({f"- {e}" for e in ev})
+    for con, ev_list in constraints.items():
+        ev_str = "\n".join({f"- {e} [dim italic](Raw Guard: {e.raw_guard})[/]" for e in ev_list})
 
-        next_state = sympy.And(global_state, con)
-        if not sympy.satisfiable(next_state):
+        # Check for conflicts
+        next_state = sympy.simplify_logic(sympy.And(global_state, con))
+        if next_state == sympy.false or not sympy.satisfiable(next_state):
             global_conflict = True
-            table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str)
+            table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str, "[dim red]UNSOLVABLE[/]")
         else:
             global_state = next_state
-            table.add_row(str(con), "[green]OK[/]", ev_str)
+            table.add_row(str(con), "[bold green]OK[/]", ev_str, str(global_state))
 
     ui.out_info("Rendering table ...")
     ui.raw.print(table)
 
-    ui.out_success(f"Final configuration: {global_state}")
-    if not global_conflict:
-        simple_state = sympy.simplify_logic(global_state, force=True)
-        ui.out_success(f"Simplified: {simple_state}")
+    if global_conflict:
+        ui.out_error("Impossible layout! Conflicting requirements detected.")
+        return
 
-        models = sympy.satisfiable(global_state, all_models=True)
-        ui.out_success(f"Found {len(list(models))} valid configurations to satisfy these constraints.")
+    ui.out_success(f"Final Required Configuration: {global_state}")
+    models = list(sympy.satisfiable(global_state, all_models=True))
+    ui.out_success(f"Found {len(models)} valid configurations to satisfy these constriants.")
+
+    if current and models[0]:
+        current_config = parser.parse_config_file(current)
+
+        ui.out_info("Rendering diff ...")
+        render_config_diff_table(current_config, models[0])

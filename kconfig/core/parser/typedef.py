@@ -37,7 +37,8 @@ def get_typedef_configs(symbol: KconfigFieldType, to_match: str) -> KconfigField
 
 def get_symbol_typedef(type_name: str) -> KconfigFieldType:
     """Find a typedef for a symbol name inside the kernel."""
-    normal_type = utils.normalize_type(type_name)
+    base_type, suffix = utils.strip_type_modifiers(type_name)
+    normal_type = utils.normalize_type(base_type)
 
     typedef = KconfigFieldType(type_name)
     if normal_type in PRIMITIVE_TYPES:
@@ -52,13 +53,15 @@ def get_symbol_typedef(type_name: str) -> KconfigFieldType:
             if not (typedef_key and typedef_val):
                 continue
 
-            if normal_type == typedef_key[0].decode():
+            found_key = typedef_key[0].decode("utf-8", errors="replace").strip()
+            found_val = typedef_val[0].decode("utf-8", errors="replace").strip()
+            if normal_type == found_key:
                 typedef_node = captures["typedef.name"][0]
                 rel_file = file.relative_to(config.state.kernel_dir)
 
                 # FIXME: This goes as high as the .h ifndef/define guards.
                 configs = get_enclosing_configs(typedef_node.parent)
-                typedef.resolved_type.append(KconfigResolvedType(typedef_val[0].decode(), rel_file, depends=configs))
+                typedef.resolved_type.append(KconfigResolvedType(f"{found_val}{suffix}", rel_file, depends=configs))
 
-    ui.out_debug(f"Resolved: {type_name} -> {typedef}")
+    ui.out_debug(f"get_symbol_typedef ({type_name}): Found {len(typedef.resolved_type)} resolutions!")
     return typedef

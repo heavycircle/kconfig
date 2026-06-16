@@ -9,7 +9,7 @@ from .core.cache import (
     get_struct_location,
 )
 from .core.config import state
-from .core.parser.declaration import get_kernel_struct
+from .core.parser import get_kernel_struct, get_symbol_typedef
 from .core.structs import get_module_struct
 from .core.symbols import get_function_signature
 
@@ -25,5 +25,6 @@ __all__ = [
     "get_module_layout",
     "get_module_struct",
     "get_struct_location",
+    "get_symbol_typedef",
     "state",
 ]

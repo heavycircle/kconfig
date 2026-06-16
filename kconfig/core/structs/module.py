@@ -1,31 +1,21 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from kconfig.core import cache, utils
+from kconfig.core import cache, config
 from kconfig.exceptions import KconfigSymbolNotFoundError
 
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    from kconfig.types import KconfigStructFields
-
-
-def get_module_struct(module_root: Path, struct_name: str) -> KconfigStructFields:
+def get_module_struct(struct_name: str) -> dict[str, str]:
     """Get a struct's source from a kernel module.
 
     Args:
-        module_root (Path): Base kernel module directory.
         struct_name (str): Name of the structure.
 
     Returns:
-        KconfigStructFields: Field-to-type mapping for the requested structure.
+        dict[str, str]: Field-to-type mapping for the requested structure.
 
     """
-    for file in utils.find_candidate_kernel_modules(module_root, struct_name):
-        layout = cache.get_module_layout(file)
-        if struct_name in layout:
-            return layout[struct_name]
+    layout = cache.get_module_layout(struct_name)
+    if not layout:
+        raise KconfigSymbolNotFoundError(struct_name, config.state.module_dir)
 
-    raise KconfigSymbolNotFoundError(struct_name, module_root)
+    return {field.field_name: field.field_type.original_type for field in layout}

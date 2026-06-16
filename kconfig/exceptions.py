@@ -105,15 +105,6 @@ class KconfigSymbolNotFoundError(KconfigSymbolError):
         super().__init__(f"Cannot find definition for '{target_name}' in '{search_root}'")
 
 
-class KconfigSymbolAliasedError(KconfigSymbolError):
-    """Raised when a target struct is actually a macro alias or typedef."""
-
-    def __init__(self, original_name: str, true_name: str) -> None:
-        self.original_name = original_name
-        self.true_name = true_name
-        super().__init__(f"Symbol '{original_name}' is an alias for '{true_name}'")
-
-
 # --- Analysis Errors ------------------------------------------
 
 
@@ -126,14 +117,3 @@ class KconfigSubprocessFailedError(KconfigToolingError):
 
     def __init__(self, tool_name: str, stderr: str) -> None:
         super().__init__(f"Tool '{tool_name}' failed to execute:\n{stderr}")
-
-
-class KconfigAnalysisError(KconfigError):
-    """Base class for layout diffing and validation errors."""
-
-
-class KconfigLayoutMismatchError(KconfigAnalysisError):
-    """Raised when compiled memory layout conflicts with source Kconfig guards."""
-
-    def __init__(self, struct_name: str, mismatch_details: str) -> None:
-        super().__init__(f"Analysis failed for '{struct_name}': {mismatch_details}")

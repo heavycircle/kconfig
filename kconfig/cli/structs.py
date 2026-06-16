@@ -7,7 +7,7 @@ from kconfig.core.cache import build_kernel_cache
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.styling_api import render_struct, ui
 
-from .options import KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
+from .options import ConfigOpt, KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
 
 
 app = typer.Typer()
@@ -24,21 +24,25 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
         raise KconfigSymbolNotFoundError(symbol, state.kernel_dir.name)
 
     ui.out_info(f"Rendering struct: {symbol}")
-    ui.raw.print(render_struct(struct))
+    render_struct(struct)
     if recursive:
         ui.out_info(f"Found {struct.dependencies} dependencies!")
 
 
 @app.command("compare")
-def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False) -> None:
+def struct_compare(
+    kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, current: ConfigOpt = None, recursive: RecursiveOpt = False
+) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""
     state.kernel_version = kernel
     state.module_dir = modules
 
     build_kernel_cache()
+    ui.out_info(f"Building{' recursive ' if recursive else ' '}layout: '{symbol}'")
     kernel_struct = get_kernel_struct(symbol, recursive=recursive)
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(symbol, state.kernel_dir.name)
 
     build_module_struct_cache()
-    analyze_struct_tree(kernel_struct)
+    ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
+    analyze_struct_tree(kernel_struct, current=current)

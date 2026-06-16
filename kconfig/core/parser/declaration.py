@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core.structs.kernel import find_struct_declaration
+from kconfig.core import structs
 from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigSymbolNotFoundError
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 from kconfig.ui import ui
@@ -150,28 +150,25 @@ def parse_struct_specifier(
 
 
 def get_kernel_struct(
-    struct_name: str, recursive: bool = False, active_chain: set[str] | None = None
+    struct_name: str, recursive: bool = False, visited: set[str] | None = None
 ) -> KconfigStruct | None:
     """Find configs inside a structure."""
-    if active_chain is None:
-        active_chain = set()
+    if visited is None:
+        visited = set()
 
     if struct_name in STRUCT_LAYOUT_CACHE:
-        ui.out_debug(f"Cache hit: '{struct_name}'")
         return STRUCT_LAYOUT_CACHE[struct_name]
-
-    if struct_name in active_chain:
-        ui.out_debug(f"Already parsed: {struct_name}")
+    if struct_name in visited:
         return None
-    active_chain.add(struct_name)
+    visited.add(struct_name)
 
     try:
-        root_node, struct_info = find_struct_declaration(struct_name)
-        struct_info.fields = parse_struct_specifier(root_node, struct_info.file, recursive, active_chain)
+        root_node, struct_info = structs.find_struct_declaration(struct_name)
+        struct_info.fields = parse_struct_specifier(root_node, struct_info.file, recursive, visited)
         STRUCT_LAYOUT_CACHE[struct_name] = struct_info
         return struct_info
     except KconfigSymbolNotFoundError:
         ui.out_warning(f"Cannot find definition for '{struct_name}'")
         return None
     finally:
-        active_chain.remove(struct_name)
+        visited.remove(struct_name)

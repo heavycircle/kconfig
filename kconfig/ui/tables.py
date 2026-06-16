@@ -10,52 +10,7 @@ from .logging import ui
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from kconfig.types import KconfigAnalysis, KconfigFieldType
-
-
-def render_struct_comparison_table(result: KconfigAnalysis) -> None:
-    """Render the struct comparison result as Rich tables to the terminal.
-
-    Args:
-        result (KconfigAnalysis): Aggregated analysis containing enabled, disabled,
-            and conflicting CONFIG evidence.
-
-    """
-    config_table = Table(show_header=True, header_style="bold magenta")
-    config_table.add_column("CONFIG Option")
-    config_table.add_column("State", justify="center")
-    config_table.add_column("Primary Evidence")
-    config_table.add_column("Matches", justify="center")
-
-    for cfg, matches in result.enabled_configs.items():
-        config_table.add_row(cfg, "[bold green]ENABLED[/bold green]", str(matches[0]), str(len(matches)))
-    for cfg, matches in result.disabled_configs.items():
-        config_table.add_row(cfg, "[dim]DISABLED[/dim]", str(matches[0]), str(len(matches)))
-
-    ui.raw.print(config_table)
-
-    if result.conflicts:
-        ui.raw.print("")
-
-        conflict_table = Table(
-            title="[bold red]CONFLICTS DETECTED[/bold red]",
-            show_header=True,
-            header_style="bold red",
-            border_style="red",
-        )
-        conflict_table.add_column("CONFIG Flag", style="bold yellow")
-        conflict_table.add_column("Contradictory Evidence")
-
-        for cfg, evidence_list in result.conflicts.items():
-            evidence_strings: list[str] = []
-            for ev in evidence_list:
-                color = "green" if ev.is_enabled else "red"
-                evidence_strings.append(f"[{color}]{ev}[/{color}]")
-
-            combined_evidence = "\n".join(evidence_strings)
-            conflict_table.add_row(cfg, combined_evidence)
-
-        ui.raw.print(conflict_table)
+    from kconfig.types import KconfigFieldType
 
 
 def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
@@ -93,5 +48,36 @@ def render_field_type_table(field: KconfigFieldType) -> None:
 
     for f in sorted(field.resolved_type, key=lambda i: (i.true_type, i.file)):
         table.add_row(field.original_type, f.true_type, str(f.file), str(f.depends) or "")
+
+    ui.raw.print(table)
+
+
+def render_config_diff_table(current_config: dict[str, bool], computed_config: dict[str, bool]) -> None:
+    """Render the difference in the computed config versus a current config.
+
+    Args:
+        current_config (dict[str, bool]): The current config.
+            Probably computed by parse_config_file.
+        computed_config (dict[str, bool]): The computed config.
+            Probably computed by analyze_struct_tree.
+
+    """
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("CONFIG Option", style="cyan")
+    table.add_column("Status")
+    table.add_column("Notes", style="dim")
+
+    for config, is_set in computed_config.items():
+        config_str = str(config)
+        if not config_str.startswith("CONFIG_"):
+            continue
+
+        computed_set = current_config.get(config_str, False)
+        if is_set == computed_set:
+            continue
+
+        enable_str = "[bold green]Enabled[/]" if is_set else "[bold red]Disabled[/]"
+        reason_str = "Incorrect" if config_str in current_config else "Missing"
+        table.add_row(config_str, enable_str, f"{reason_str} in current .config")
 
     ui.raw.print(table)
