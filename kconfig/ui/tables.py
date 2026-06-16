@@ -52,13 +52,22 @@ def render_field_type_table(field: KconfigFieldType) -> None:
     ui.raw.print(table)
 
 
-def render_config_diff(current_config: dict[str, bool], computed_config: dict[str, bool]) -> None:
+def render_config_diff_table(current_config: dict[str, bool], computed_config: dict[str, bool]) -> None:
+    """Render the difference in the computed config versus a current config.
+
+    Args:
+        current_config (dict[str, bool]): The current config.
+            Probably computed by parse_config_file.
+        computed_config (dict[str, bool]): The computed config.
+            Probably computed by analyze_struct_tree.
+
+    """
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("CONFIG Option", style="cyan")
     table.add_column("Status")
     table.add_column("Notes", style="dim")
 
-    for config, is_set in computed_configs.items():
+    for config, is_set in computed_config.items():
         config_str = str(config)
         if not config_str.startswith("CONFIG_"):
             continue

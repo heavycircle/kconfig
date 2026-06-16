@@ -157,11 +157,8 @@ def get_kernel_struct(
         visited = set()
 
     if struct_name in STRUCT_LAYOUT_CACHE:
-        ui.out_debug(f"Cache hit: '{struct_name}'")
         return STRUCT_LAYOUT_CACHE[struct_name]
-
     if struct_name in visited:
-        ui.out_debug(f"Already parsed: {struct_name}")
         return None
     visited.add(struct_name)
 

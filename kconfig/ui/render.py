@@ -61,7 +61,7 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> Renderab
     for field in struct.fields:
         field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
         if field.depends:
-            field_text += f"[dim italic yellow] (Requires: {field.depends)})[/]"  # TODO: simplify_guard_expr
+            field_text += f"[dim italic yellow] (Requires: {field.depends})[/]"  # TODO: simplify_guard_expr
 
         if field.field_type.layout:
             field_node = tree.add(field_text)

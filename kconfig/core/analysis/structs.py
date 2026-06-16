@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 import sympy
 from rich.table import Table
 
-from kconfig.core import config, parser, structs
+from kconfig.core import parser, structs
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigEvidence
-from kconfig.ui import render_config_diff, ui
+from kconfig.ui import render_config_diff_table, ui
 
 from .guards import parse_config_guard
 
@@ -53,7 +53,7 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
         visited.add(name)
 
     try:
-        layout = structs.get_module_struct(config.state.module_dir, name) if name else {}
+        layout = structs.get_module_struct(name)
     except KconfigSymbolNotFoundError as e:
         ui.out_warning(f"{e}, skipping ...")
         return []
@@ -115,11 +115,17 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     return evidence_list
 
 
-def analyze_struct_tree(root_struct: KconfigStruct) -> None:
+def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None) -> None:
     """Analyze a tree of structs and render a table of enabled configs.
+
+    This method aims to complete. On error, it will print the error and keep
+    running. These errors either mean an error in the parsing of the kernel
+    or modules.
 
     Args:
         root_struct (KconfigStruct): The struct to recursively parse.
+        current (str | None): Path to a .config file for rendering a diff.
+
     """
     evidence = gather_struct_evidence(root_struct)
     if not evidence:
@@ -133,7 +139,6 @@ def analyze_struct_tree(root_struct: KconfigStruct) -> None:
     global_state = sympy.true
     global_conflict = False
 
-    # FIX: Redefined columns to perfectly match the data being injected
     table = Table(title=f"Analysis: {root_struct.original_name}")
     table.add_column("Applied Constraint", style="yellow")
     table.add_column("Status", justify="center")
@@ -158,15 +163,13 @@ def analyze_struct_tree(root_struct: KconfigStruct) -> None:
     if global_conflict:
         ui.out_error("Impossible layout! Conflicting requirements detected.")
         return
-    
+
     ui.out_success(f"Final Required Configuration: {global_state}")
     models = list(sympy.satisfiable(global_state, all_models=True))
-    first_model = next(models, None)
-    ui.out_success(f"Found {len(models) + 1} valid configurations to satisfy these constriants.")
+    ui.out_success(f"Found {len(models)} valid configurations to satisfy these constriants.")
 
-    if current and first_model:
+    if current and models[0]:
         current_config = parser.parse_config_file(current)
 
         ui.out_info("Rendering diff ...")
-        render_config_diff(current_config, first_model)
-        
+        render_config_diff_table(current_config, models[0])

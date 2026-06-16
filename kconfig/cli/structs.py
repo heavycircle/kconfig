@@ -30,15 +30,19 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
 
 
 @app.command("compare")
-def struct_compare(kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, config: ConfigOpt, recursive: RecursiveOpt = False) -> None:
+def struct_compare(
+    kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, current: ConfigOpt = None, recursive: RecursiveOpt = False
+) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""
     state.kernel_version = kernel
     state.module_dir = modules
 
     build_kernel_cache()
+    ui.out_info(f"Building{' recursive ' if recursive else ' '}layout: '{symbol}'")
     kernel_struct = get_kernel_struct(symbol, recursive=recursive)
     if not kernel_struct:
         raise KconfigSymbolNotFoundError(symbol, state.kernel_dir.name)
 
     build_module_struct_cache()
+    ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
     analyze_struct_tree(kernel_struct, current=current)

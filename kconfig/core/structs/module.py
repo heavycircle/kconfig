@@ -18,4 +18,4 @@ def get_module_struct(struct_name: str) -> dict[str, str]:
     if not layout:
         raise KconfigSymbolNotFoundError(struct_name, config.state.module_dir)
 
-    raise {field.field_name: field.field_type.original_type for field in layout}
+    return {field.field_name: field.field_type.original_type for field in layout}

@@ -38,7 +38,7 @@ def cache_module_structs() -> None:
         return
 
     for file in target_files:
-        cmd = ["pahole", str(ko_path)]
+        cmd = ["pahole", str(file)]
 
         result = subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
         if result.returncode != 0 or not result.stdout.strip():
@@ -48,8 +48,9 @@ def cache_module_structs() -> None:
             name_node = utils.get_capture_text(captures, "struct.name")
             if not name_node:
                 continue
-    
-            fields = parser.parse_struct_specifier(captures["struct.name"][0].parent, ko_path, recursive=False)
+
+            name = name_node[0].decode("utf-8", errors="replace")
+            fields = parser.parse_struct_specifier(captures["struct.name"][0].parent, file, recursive=False)
             MODULE_CACHE.setdefault(file.as_posix(), {})[name] = fields
 
     module_cache_file = CACHE_MODULE_DIR / f"cache_module_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
@@ -57,6 +58,7 @@ def cache_module_structs() -> None:
         pickle.dump(MODULE_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ui.out_success(f"Cached capabilities for {len(target_files)} modules!")
+
 
 def build_module_struct_cache() -> None:
     """Load the typedef cache from disk, or build it if it's missing/invalid."""
@@ -66,11 +68,11 @@ def build_module_struct_cache() -> None:
         return
 
     try:
-        with module_cache.open("rb") as f:
+        with module_cache_file.open("rb") as f:
             MODULE_CACHE.clear()
             MODULE_CACHE.update(pickle.load(f))  # noqa: S301
 
-        ui.out_debug(f"Loaded {len(MODULE_CACHE}) modules from disk cache.")
+        ui.out_debug(f"Loaded {len(MODULE_CACHE)} modules from disk cache.")
     except (pickle.UnpicklingError, KeyError, TypeError):
         ui.out_warning("Cache file corrupted. Rebuilding ...")
         cache_module_structs()
