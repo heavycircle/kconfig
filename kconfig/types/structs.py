@@ -15,8 +15,9 @@ class KconfigResolvedType:
 
     resolved_type: str
     file: Path
-
     guard: Expr
+
+    layout: KconfigStruct | None = None
 
 
 @dataclass
@@ -24,9 +25,7 @@ class KconfigFieldType:
     """The type of a field within a struct."""
 
     original_type: str
-    resolved_type: list[KconfigResolvedType] = field(default_factory=list)
-
-    layout: KconfigStruct | None = None
+    resolved_types: list[KconfigResolvedType] = field(default_factory=list)
 
 
 @dataclass
@@ -34,7 +33,7 @@ class KconfigStructField:
     """A field within a struct."""
 
     field_name: str
-    field_type: str  # TODO: KconfigFieldType
+    field_type: KconfigFieldType
 
     guard: Expr
 

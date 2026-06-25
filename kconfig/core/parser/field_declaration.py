@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from kconfig.core.utils import NodeDispatch, dispatcher
 from kconfig.exceptions import KconfigASTAnomalyError
+from kconfig.types import KconfigFieldType
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -81,4 +82,6 @@ def parse_field_declaration(node: Node, state: KconfigParserState, dispatcher: N
         mods, name = unwrap_declarator(declarator_node)
 
     full_type = " ".join(f"{base_type} {mods}".strip().split())
-    state.record_field(name, full_type)
+
+    field_type = KconfigFieldType(full_type)
+    state.record_field(name, field_type)

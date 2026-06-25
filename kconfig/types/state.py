@@ -6,7 +6,7 @@ import sympy
 
 from kconfig.exceptions import KconfigASTAnomalyError
 
-from .structs import KconfigStructField
+from .structs import KconfigFieldType, KconfigStructField
 
 
 @dataclass
@@ -37,7 +37,7 @@ class KconfigParserState:
 
         self.push_config(sympy.Not(last_config))
 
-    def record_field(self, field_name: str, field_type: str) -> None:
+    def record_field(self, field_name: str, field_type: KconfigFieldType) -> None:
         """Add a field to this structure."""
         if not self.configs:
             guard = sympy.true
@@ -47,4 +47,3 @@ class KconfigParserState:
             guard = sympy.simplify(sympy.And(*self.configs))
 
         self.fields.append(KconfigStructField(field_name, field_type, guard))
-

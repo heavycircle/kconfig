@@ -17,6 +17,9 @@ class KconfigState:
         self._kernel_dir: Path
         self._module_dir: Path
 
+        # Publicly-set variables
+        self.recursive: bool = False
+
     def _check_kernel_dir(self, kernel_dir: Path) -> None:
         if not kernel_dir.exists():
             raise KconfigInvalidArgumentError(kernel_dir.name, "Missing kernel directory")
