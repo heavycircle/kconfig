@@ -13,9 +13,9 @@ if TYPE_CHECKING:
     from kconfig.types import KconfigParserState
 
 
-@dispatcher.register("preproc_def")
-def parse_preproc_def(node: Node, state: KconfigParserState, dispatcher: NodeDispatch) -> None:
-    """Parse a ``preproc_def`` node.
+@dispatcher.register("type_definition")
+def parse_type_definition(node: Node, state: KconfigParserState, dispatcher: NodeDispatch) -> None:
+    """Parse a ``type_definition`` node.
 
     Args:
             node (Node): The tree-sitter node to process.

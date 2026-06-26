@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from kconfig.core.config import state as global_state
+from kconfig.core.query import get_symbol_typedef
 from kconfig.core.utils import NodeDispatch, dispatcher
 from kconfig.exceptions import KconfigASTAnomalyError
-from kconfig.types import KconfigFieldType
+from kconfig.types import KconfigFieldType, KconfigParserState, KconfigResolvedType, KconfigStruct
+from kconfig.ui import ui
 
 if TYPE_CHECKING:
     from tree_sitter import Node
-
-    from kconfig.types import KconfigParserState
 
 
 def unwrap_declarator(node: Node) -> tuple[str, str]:
@@ -85,3 +87,38 @@ def parse_field_declaration(node: Node, state: KconfigParserState, dispatcher: N
 
     field_type = KconfigFieldType(full_type)
     state.record_field(name, field_type)
+
+    if not global_state.recursive:
+        return
+
+    if type_node.type in ("struct_specifier", "union_specifier"):
+        body_node = type_node.child_by_field_name("body")
+        if not body_node:
+            print(type_node, node.text)
+            raise KconfigASTAnomalyError(type_node.type, "Missing 'body' field")
+
+        # Make a recursive call with a NEW state.
+        nested_state = KconfigParserState(configs=list(state.configs))
+        dispatcher.dispatch(body_node, nested_state)
+
+        # Aggregate these results.
+        nested_layout = KconfigStruct(
+            f"anonymous_nested_{node.id}",
+            Path(""),
+            node.start_point[0],
+            fields=nested_state.fields,
+        )
+        state.fields[-1].field_type.resolved_types.append(
+            KconfigResolvedType(
+                full_type,
+                Path(""),
+                state.fields[-1].guard,
+                nested_layout,
+            )
+        )
+
+    elif type_node.type == "type_identifer":
+        ui.out_debug(f"Looking up custom type: {base_type}")
+
+        resolved_type = get_symbol_typedef(base_type)
+        state.fields[-1].field_type = resolved_type

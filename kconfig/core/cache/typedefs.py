@@ -3,7 +3,7 @@ from __future__ import annotations
 import pickle
 from typing import TYPE_CHECKING
 
-from kconfig.core import config, parser, utils
+from kconfig.core import config, query, utils
 from kconfig.ui import ui
 
 from .config import CACHE_STRUCT_DIR
@@ -23,10 +23,11 @@ def cache_typedef_locations() -> None:
     for path in config.state.kernel_dir.rglob("*.[ch]"):
         contents = path.read_bytes()
 
-        for _, captures in parser.run_query("typedef-list", contents):
-            typedef_names = utils.get_capture_text(captures, "typedef.name")
-            if not typedef_names:
+        for _, captures in query.run_query("typedef-list", contents):
+            if "typedef.name" not in captures:
                 continue
+
+            typedef_name = captures["typedef.name"][0]
 
             TYPEDEF_CACHE.setdefault(typedef_names[0].decode(), set()).add(path)
 
