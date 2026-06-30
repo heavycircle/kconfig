@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import sympy
 
-from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError
+from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigUnsupportedArgumentError
+from kconfig.ui import ui
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -70,7 +71,7 @@ def _parse_call_expression(node: Node) -> sympy.Expr:
     return sympy.Symbol(arg_name.text.decode())
 
 
-def _parse_binary_expression(node: Node) -> sympy.Expr | None:
+def _parse_binary_expression(node: Node) -> sympy.Expr:
     """Parse a ``binary_expression`` node.
 
     This method only supports binary expressions ``&&`` and ``||``.
@@ -84,8 +85,7 @@ def _parse_binary_expression(node: Node) -> sympy.Expr | None:
         KconfigASTAnomalyError: Node is missing a ``right`` field.
 
     Returns:
-        sympy.Expr | None: The expression representing this condition, or None
-            if the expression could not be parsed.
+        sympy.Expr: The expression representing this condition.
 
     """
     op = node.child_by_field_name("operator")
@@ -98,14 +98,17 @@ def _parse_binary_expression(node: Node) -> sympy.Expr | None:
         raise KconfigASTAnomalyError(node.type, "Missing 'left' and 'right' fields")
 
     if op.text.decode() == "&&":
-        return sympy.And(parse_condition_node(left), parse_condition_node(right))
-    if op.text.decode() == "||":
-        return sympy.Or(parse_condition_node(left), parse_condition_node(right))
+        expr = sympy.And(parse_condition_node(left), parse_condition_node(right))
+    elif op.text.decode() == "||":
+        expr = sympy.Or(parse_condition_node(left), parse_condition_node(right))
+    else:
+        ui.out_warning(f"Unsupported binary_expression: {node.text.decode()}")
+        expr = sympy.Symbol(node.text.decode())
 
-    return None
+    return cast("sympy.Expr", expr)
 
 
-def _parse_unary_expression(node: Node) -> sympy.Expr | None:
+def _parse_unary_expression(node: Node) -> sympy.Expr:
     """Parse a ``unary_expression`` node.
 
     This method only supports unary expression ``!``.
@@ -131,9 +134,12 @@ def _parse_unary_expression(node: Node) -> sympy.Expr | None:
         raise KconfigASTAnomalyError(node.type, "Missing 'argument' field")
 
     if op.text.decode() == "!":
-        return sympy.Not(parse_condition_node(argument))
+        expr = sympy.Not(parse_condition_node(argument))
+    else:
+        ui.out_warning(f"Unsupported unary_expression: {node.text.decode()}")
+        expr = sympy.Symbol(node.text.decode())
 
-    return None
+    return cast("sympy.Expr", expr)
 
 
 def parse_condition_node(node: Node) -> sympy.Expr:
@@ -158,6 +164,7 @@ def parse_condition_node(node: Node) -> sympy.Expr:
     if not node.text:
         raise KconfigASTAnomalyError(node.type, "Missing a body")
 
+    expr: sympy.Expr | None = None
     match node.type:
         case "preproc_defined":
             expr = _parse_preproc_defined(node)

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core.utils import NodeDispatch, dispatcher
 from kconfig.exceptions import KconfigASTAnomalyError
 
 from .condition import parse_condition_node
+from .dispatcher import NodeDispatch, dispatch
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from kconfig.types import KconfigParserState
 
 
-@dispatcher.register("preproc_if")
-@dispatcher.register("preproc_ifdef")
+@dispatch.register("preproc_if")
+@dispatch.register("preproc_ifdef")
 def parse_preproc_if(node: Node, state: KconfigParserState, dispatcher: NodeDispatch) -> None:
     """Parse a ``preproc_if`` or ``preproc_ifdef`` node.
 

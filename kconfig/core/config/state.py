@@ -5,7 +5,7 @@ from pathlib import Path
 
 from kconfig.exceptions import KconfigInvalidArgumentError, KconfigMissingArgumentError
 
-from .cache import CACHE_KERNEL_DIR
+from .constants import CACHE_KERNEL_DIR
 
 
 @dataclass
@@ -89,4 +89,4 @@ class KconfigState:
         self._module_dir = p
 
 
-state = KconfigState()
+kconfig_state = KconfigState()

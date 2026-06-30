@@ -36,4 +36,4 @@ class NodeDispatch:
 
 
 # Singleton instance
-dispatcher = NodeDispatch()
+dispatch = NodeDispatch()

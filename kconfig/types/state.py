@@ -15,6 +15,8 @@ class KconfigParserState:
 
     configs: list[sympy.Expr] = field(default_factory=list)
     fields: list[KconfigStructField] = field(default_factory=list)
+    visited: set[str] = field(default_factory=set)
+    recursive: bool = False
 
     def push_config(self, expr: sympy.Expr) -> None:
         """Add a config to the stack."""
@@ -37,7 +39,7 @@ class KconfigParserState:
 
         self.push_config(sympy.Not(last_config))
 
-    def record_field(self, field_name: str, field_type: KconfigFieldType) -> None:
+    def record_field(self, field_name: str, field_type: KconfigFieldType) -> KconfigStructField:
         """Add a field to this structure."""
         if not self.configs:
             guard = sympy.true
@@ -46,4 +48,6 @@ class KconfigParserState:
         else:
             guard = sympy.simplify(sympy.And(*self.configs))
 
-        self.fields.append(KconfigStructField(field_name, field_type, guard))
+        ref = KconfigStructField(field_name, field_type, guard)
+        self.fields.append(ref)
+        return ref

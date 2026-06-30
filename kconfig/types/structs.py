@@ -17,6 +17,7 @@ class KconfigResolvedType:
     file: Path
     guard: Expr
 
+    # Recursive sub-fields
     layout: KconfigStruct | None = None
 
 
@@ -26,6 +27,9 @@ class KconfigFieldType:
 
     original_type: str
     resolved_types: list[KconfigResolvedType] = field(default_factory=list)
+
+    # Recursive sub-fields
+    layout: KconfigStruct | None = None
 
 
 @dataclass

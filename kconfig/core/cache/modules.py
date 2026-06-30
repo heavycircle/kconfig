@@ -5,11 +5,10 @@ import pickle
 import subprocess
 from typing import TYPE_CHECKING
 
-from kconfig.core import config, parser, utils
+from kconfig.core import parser, utils
+from kconfig.core.config import CACHE_MODULE_DIR
 from kconfig.exceptions import KconfigSubprocessFailedError
 from kconfig.ui import ui
-
-from .config import CACHE_MODULE_DIR
 
 if TYPE_CHECKING:
     from kconfig.types import KconfigStructField
@@ -29,11 +28,11 @@ def cache_module_structs() -> None:
     ui.out_info("Warming the module capability cache (this may take a minute) ...")
     MODULE_CACHE.clear()
 
-    ko_files = config.state.module_dir.rglob("*.ko")
-    vmlinux_files = list(config.state.module_dir.rglob("vmlinux"))
+    ko_files = kconfig_state.module_dir.rglob("*.ko")
+    vmlinux_files = list(kconfig_state.module_dir.rglob("vmlinux"))
     target_files = list(itertools.chain(ko_files, vmlinux_files))
     if not target_files:
-        ui.out_warning(f"No .ko files found in {config.state.module_dir}")
+        ui.out_warning(f"No .ko files found in {kconfig_state.module_dir}")
         return
 
     for file in target_files:
@@ -52,7 +51,7 @@ def cache_module_structs() -> None:
             fields = parser.parse_struct_specifier(captures["struct.name"][0].parent, file, recursive=False)
             MODULE_CACHE.setdefault(file.as_posix(), {})[name] = fields
 
-    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with module_cache_file.open("wb") as f:
         pickle.dump(MODULE_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -61,7 +60,7 @@ def cache_module_structs() -> None:
 
 def build_module_struct_cache() -> None:
     """Load the typedef cache from disk, or build it if it's missing/invalid."""
-    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     if not module_cache_file.exists():
         cache_module_structs()
         return

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core.utils import NodeDispatch, dispatcher
+from .dispatcher import NodeDispatch, dispatch
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from kconfig.types import KconfigParserState
 
 
-@dispatcher.register("preproc_else")
+@dispatch.register("preproc_else")
 def parse_preproc_else(node: Node, state: KconfigParserState, dispatcher: NodeDispatch) -> None:
     """Parse a ``preproc_else`` node.
 
@@ -28,4 +28,3 @@ def parse_preproc_else(node: Node, state: KconfigParserState, dispatcher: NodeDi
 
     for child in node.children:
         dispatcher.dispatch(child, state)
-

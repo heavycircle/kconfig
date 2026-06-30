@@ -38,7 +38,7 @@ def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.k
         return func(*args, **kwargs)
 
 
-def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
+def render_struct(struct: KconfigStruct, parent: Tree | None = None, visited: set[str] | None = None) -> None:
     """Print a structure tree to the console.
 
     Recursively renders nested structs as sub-branches. When ``parent`` is
@@ -48,24 +48,33 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None) -> None:
         struct (KconfigStruct): Struct to render.
         parent (Tree | None): Existing Rich ``Tree`` node to attach to as a
             child. If ``None`` a new root tree is created and printed.
+        visited (set[str] | None): The list of visited nodes inside the tree.
 
     """
+    if visited is None:
+        visited = set()
+
     title = f"[bold cyan]{struct.original_name}[/]"
     if struct.resolved_name != struct.original_name:
         title += f" [dim italic] -> {struct.resolved_name}[/]"
-    title += f" [dim]({struct.file})[/]"
+    title += f" [dim]({struct.file_path}:{struct.file_line})[/]"
+
+    if struct.resolved_name in visited:
+        if parent:
+            parent.add(f"{title} [italic red](cyclic ref)[/]")
+        return
 
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
+    branch = visited | {struct.resolved_name}
 
     for field in struct.fields:
         field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
-        if field.depends:
-            # TODO (heavycircle): call simplify_guard_expr
-            field_text += f"[dim italic yellow] (Requires: {field.depends})[/]"
+        if field.field_type.layout:
+            field_text += f"[dim italic yellow] (Requires: {field.guard})[/]"
 
         if field.field_type.layout:
             field_node = tree.add(field_text)
-            render_struct(field.field_type.layout, parent=field_node)
+            render_struct(field.field_type.layout, parent=field_node, visited=branch)
         else:
             tree.add(field_text)
 

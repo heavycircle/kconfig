@@ -3,19 +3,19 @@ from __future__ import annotations
 import pickle
 from typing import TYPE_CHECKING
 
-from kconfig.core import config, parser, utils
+from kconfig.core.config import CACHE_STRUCT_DIR, kconfig_state
+from kconfig.core.query import run_alias_list, run_struct_list
 from kconfig.types import KconfigStruct
 from kconfig.ui import ui
-
-from .config import CACHE_STRUCT_DIR
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-STRUCT_CACHE: dict[str, set[Path]] = {}
+
+STRUCT_CACHE: dict[str, set[tuple[Path, int]]] = {}
 """Cached locations of struct definitions."""
 
-ALIAS_CACHE: dict[str, str] = {}
+ALIAS_CACHE: dict[str, set[tuple[str, Path]]] = {}
 """Cached locations of alias definitions."""
 
 
@@ -25,35 +25,22 @@ def cache_struct_locations() -> None:
     STRUCT_CACHE.clear()
     ALIAS_CACHE.clear()
 
-    for path in config.state.kernel_dir.rglob("*.[ch]"):
-        contents = path.read_bytes()
-
+    for path in kconfig_state.kernel_dir.rglob("*.[ch]"):
         # Capture structures
-        for _, captures in parser.run_query("struct-list", contents):
-            struct_names = utils.get_capture_text(captures, "struct.name")
-            if not struct_names:
-                continue
-
-            STRUCT_CACHE.setdefault(struct_names[0].decode(), set()).add(path)
+        for _, struct in run_struct_list(file=path):
+            STRUCT_CACHE.setdefault(struct.original_name, set()).add((struct.file_path, struct.file_line))
 
         # Capture aliases
-        for _, captures in parser.run_query("alias-list", contents):
-            alias_names = utils.get_capture_text(captures, "alias.name")
-            alias_targets = utils.get_capture_text(captures, "alias.target")
-            if not (alias_names and alias_targets):
-                continue
-
-            alias = alias_names[0].decode("utf-8", errors="replace")
-            target = alias_targets[0].decode("utf-8", errors="replace")
-            ALIAS_CACHE[alias] = target.replace("struct ", "").replace("union ", "").strip()
+        for alias, alias_vals in run_alias_list(path).items():
+            ALIAS_CACHE.setdefault(alias, set()).update(alias_vals)
 
     # Cache structs
-    struct_cache_file = CACHE_STRUCT_DIR / f"cache_struct_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    struct_cache_file = CACHE_STRUCT_DIR / f"cache_struct_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with struct_cache_file.open("wb") as f:
         pickle.dump(STRUCT_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Cache aliases
-    alias_cache_file = CACHE_STRUCT_DIR / f"cache_alias_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    alias_cache_file = CACHE_STRUCT_DIR / f"cache_alias_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with alias_cache_file.open("wb") as f:
         pickle.dump(ALIAS_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -62,8 +49,8 @@ def cache_struct_locations() -> None:
 
 def build_struct_location_cache() -> None:
     """Load the struct cache from disk, or build it if it's missing/invalid."""
-    struct_cache_file = CACHE_STRUCT_DIR / f"cache_struct_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
-    alias_cache_file = CACHE_STRUCT_DIR / f"cache_alias_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    struct_cache_file = CACHE_STRUCT_DIR / f"cache_struct_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
+    alias_cache_file = CACHE_STRUCT_DIR / f"cache_alias_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     if not (struct_cache_file.exists() and alias_cache_file.exists()):
         cache_struct_locations()
         return
@@ -83,20 +70,21 @@ def build_struct_location_cache() -> None:
         cache_struct_locations()
 
 
-def _rank_file(path: Path) -> tuple[int, int, str]:
+def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, str]:
     """Rank a source file that contains a struct definition.
 
     Args:
-        path (Path): The path to check.
+        path (tuple[Path, int]): The (path, line number) to check.
 
     Returns:
-        tuple[int, int, str]: A rank of this file, tiered by its path, then
-            the length of the path, then its alphabetic name.
+        tuple[int, int, int, str]: A rank of this file, tiered by its path,
+            location in its path, the length of the path, then its name.
 
     """
-    is_header = path.suffix == ".h"
+    file, line = path
+    is_header = file.suffix == ".h"
 
-    top = next((p for p in path.parts if p in ("include", "arch")), None)
+    top = next((p for p in file.parts if p in ("include", "arch")), None)
     if top == "include" and is_header:
         tier = 0
     elif top == "arch" and is_header:
@@ -106,7 +94,7 @@ def _rank_file(path: Path) -> tuple[int, int, str]:
     else:
         tier = 3
 
-    return (tier, len(path.parts), path.as_posix())
+    return (tier, line, len(file.parts), file.as_posix())
 
 
 def get_struct_location(struct_name: str) -> KconfigStruct | None:
@@ -123,15 +111,24 @@ def get_struct_location(struct_name: str) -> KconfigStruct | None:
             if it's not in the cache.
 
     """
-    true_name = ALIAS_CACHE.get(struct_name, struct_name)
-    if true_name != struct_name:
-        ui.out_debug(f"Resolved alias: {struct_name} -> {true_name}")
+    # Choose struct definitions over aliases.
+    if struct_name in STRUCT_CACHE:
+        file_path, file_line = min(STRUCT_CACHE[struct_name], key=_rank_file)
+        return KconfigStruct(struct_name, file_path, file_line)
 
-    if true_name not in STRUCT_CACHE:
-        return None
+    if struct_name in ALIAS_CACHE:
+        # Find all aliases, ranking definitions via _rank_file.
+        resolutions: list[tuple[str, tuple[Path, int]]] = []
+        for alias_name, _ in ALIAS_CACHE[struct_name]:
+            if alias_name in STRUCT_CACHE:
+                best_path = min(STRUCT_CACHE[alias_name], key=_rank_file)
+                resolutions.append((alias_name, best_path))
 
-    locations = list(STRUCT_CACHE[true_name])
-    if len(locations) == 1:
-        return KconfigStruct(struct_name, true_name, locations[0])
+        if not resolutions:
+            return None
 
-    return KconfigStruct(struct_name, true_name, min(locations, key=_rank_file))
+        # Rank the aliases using _rank_file.
+        best_name, best_path = min(resolutions, key=lambda r: _rank_file(r[1]))
+        return KconfigStruct(struct_name, best_path[0], best_path[1], resolved_name=best_name)
+
+    return None
