@@ -4,6 +4,7 @@ import typer
 
 from kconfig.control_api import (
     analyze_struct_tree,
+    build_module_location_cache,
     build_struct_location_cache,
     get_kernel_struct,
     kconfig_state,
@@ -39,6 +40,6 @@ def struct_analyze(
     ui.out_info(f"Building{' recursive ' if recursive else ' '}layout: '{symbol}'")
     kernel_struct = get_kernel_struct(symbol, recursive=recursive)
 
-    # build_module_struct_cache()
+    build_module_location_cache()
     ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
     analyze_struct_tree(kernel_struct, current=current)
