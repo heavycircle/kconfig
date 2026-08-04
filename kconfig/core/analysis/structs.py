@@ -13,10 +13,77 @@ from kconfig.ui import render_config_diff_table, ui
 from .guards import parse_config_guard
 
 if TYPE_CHECKING:
-    from kconfig.types import KconfigStruct, KconfigStructFields
+    from kconfig.types import KconfigStruct, KconfigStructField, KconfigStructFields
 
 EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
 """Cache of structure names and their configuration evidence."""
+
+
+def _get_module_layout(name: str) -> KconfigStructFields | None:
+    """Fetch the compiled module's field layout for a struct, if it's known."""
+    try:
+        module_struct = structs.get_module_struct(name)
+    except KconfigSymbolNotFoundError as e:
+        ui.out_warning(f"{e}, skipping ...")
+        return None
+
+    return {f.field_name: f.field_type.original_type for f in module_struct.fields}
+
+
+def _type_evidence(
+    struct_name: str, field: KconfigStructField, type_guard: sympy.Expr, module_type: str
+) -> KconfigEvidence:
+    """Build evidence from a field's type matching a guarded typedef expansion."""
+    return KconfigEvidence(
+        struct_name,
+        f"{field.field_type.original_type} {field.field_name}",
+        True,
+        type_guard,
+        type_guard,
+        kind="type",
+        type=module_type,
+    )
+
+
+def _presence_evidence(struct_name: str, field: KconfigStructField, has_match: bool) -> KconfigEvidence:
+    """Build evidence from a guarded field's presence (or absence) in the module."""
+    raw_expr = parse_config_guard(str(field.guard))
+    applied = raw_expr if has_match else sympy.Not(raw_expr)
+    field_desc = f"{field.field_type.original_type} {field.field_name}"
+    return KconfigEvidence(struct_name, field_desc, has_match, raw_expr, applied)
+
+
+def _evaluate_field(
+    struct_name: str, field: KconfigStructField, layout: KconfigStructFields
+) -> list[KconfigEvidence] | None:
+    """Gather the evidence a single struct field contributes.
+
+    Returns:
+        list[KconfigEvidence] | None: The evidence found (possibly empty), or
+            ``None`` if the field's type could never match the module's
+            observed layout -- the caller should skip the field entirely.
+
+    """
+    has_match = field.field_name in layout
+    evidence: list[KconfigEvidence] = []
+
+    if has_match:
+        module_type = layout[field.field_name]
+        type_guard = parser.get_typedef_configs(field.field_type, module_type)
+
+        if type_guard == sympy.false:
+            ui.out_warning(f"Impossible: Cannot match types ({field.field_name}): {module_type}")
+            return None
+
+        if type_guard is not sympy.true:
+            evidence.append(_type_evidence(struct_name, field, type_guard, module_type))
+
+    if field.guard is not sympy.true:
+        evidence.append(_presence_evidence(struct_name, field, has_match))
+    elif not has_match:
+        ui.out_warning(f"Uncontrollable field missing in '{struct_name}': '{field.field_name}'")
+
+    return evidence
 
 
 def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = None) -> list[KconfigEvidence]:
@@ -51,60 +118,18 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     if name:
         visited.add(name)
 
-    try:
-        module_struct = structs.get_module_struct(name)
-    except KconfigSymbolNotFoundError as e:
-        ui.out_warning(f"{e}, skipping ...")
+    layout = _get_module_layout(name)
+    if layout is None:
         return []
 
-    layout: KconfigStructFields = {f.field_name: f.field_type.original_type for f in module_struct.fields}
-
+    struct_name = name or "anonymous"
     evidence_list: list[KconfigEvidence] = []
     for field in struct.fields:
-        has_match = field.field_name in layout
+        field_evidence = _evaluate_field(struct_name, field, layout)
+        if field_evidence is None:
+            continue
 
-        if has_match:
-            module_type = layout[field.field_name]
-
-            # Check this field's type
-            type_guard = parser.get_typedef_configs(field.field_type, module_type)
-            if type_guard == sympy.false:
-                ui.out_warning(f"Impossible: Cannot match types ({field.field_name}): {module_type}")
-                continue
-
-            if type_guard is not sympy.true:
-                evidence_list.append(
-                    KconfigEvidence(
-                        name or "anonymous",
-                        f"{field.field_type.original_type} {field.field_name}",
-                        True,
-                        type_guard,
-                        type_guard,
-                        kind="type",
-                        type=layout[field.field_name],
-                    )
-                )
-
-        if field.guard is not sympy.true:
-            # Check for member presence.
-            raw_expr = parse_config_guard(str(field.guard))
-            has_match = field.field_name in layout
-            applied = raw_expr if has_match else sympy.Not(raw_expr)
-
-            evidence_list.append(
-                KconfigEvidence(
-                    name or "anonymous",
-                    f"{field.field_type.original_type} {field.field_name}",
-                    has_match,
-                    raw_expr,
-                    applied,
-                )
-            )
-
-        if not has_match and field.guard is sympy.true:
-            ui.out_warning(f"Uncontrollable field missing in '{struct.original_name}': '{field.field_name}'")
-
-        # Make recursive calls.
+        evidence_list.extend(field_evidence)
         if field.field_type.layout is not None:
             evidence_list.extend(gather_struct_evidence(field.field_type.layout, visited=visited))
 
