@@ -29,7 +29,7 @@ def cache_typedef_locations() -> None:
 
             typedef_name = captures["typedef.name"][0]
 
-            TYPEDEF_CACHE.setdefault(typedef_names[0].decode(), set()).add(path)
+            TYPEDEF_CACHE.setdefault(typedef_name.text.decode(), set()).add(path)
 
     # Cache structs
     typedef_cache_file = CACHE_STRUCT_DIR / f"cache_typedef_{config.state.kernel_dir.name.replace('.', '_')}.pkl"

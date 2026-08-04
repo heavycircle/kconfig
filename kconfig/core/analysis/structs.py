@@ -84,9 +84,9 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
                     )
                 )
 
-        if field.depends:
+        if field.guard is not sympy.true:
             # Check for member presence.
-            raw_expr = parse_config_guard(str(field.depends))
+            raw_expr = parse_config_guard(str(field.guard))
             has_match = field.field_name in layout
             applied = raw_expr if has_match else sympy.Not(raw_expr)
 
@@ -100,7 +100,7 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
                 )
             )
 
-        if not has_match and not field.depends:
+        if not has_match and field.guard is sympy.true:
             ui.out_warning(f"Uncontrollable field missing in '{struct.original_name}': '{field.field_name}'")
 
         # Make recursive calls.
