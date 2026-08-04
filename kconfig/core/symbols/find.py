@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core import parser, utils
-from kconfig.core.config import state
+from kconfig.core import parser, query, utils
+from kconfig.core.config import kconfig_state
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigSignature
 from kconfig.ui import ui
@@ -25,7 +25,7 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
     """
     for file in utils.find_candidate_function_files(kernel_root, symbol_name):
         contents = file.read_bytes()
-        for _, captures in parser.run_query("signature-find", contents):
+        for _, captures in query.run_query("signature-find", contents):
             if "func.name" not in captures:
                 continue
 
@@ -38,24 +38,30 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
             if "func.def" in captures:
                 node = captures["func.def"][0]
                 body = node.child_by_field_name("body")
-                signature = contents[node.start_byte : body.start_byte] if body else utils.get_node_text(node)
+                signature = contents[node.start_byte : body.start_byte] if body else node.text
 
             elif "macro.func.def" in captures:
                 node = captures["macro.func.def"][0]
-                signature = utils.get_capture_text(captures, "macro.func.def")[0]
+                signature = node.text
                 is_macro = True
 
             elif "macro.obj.def" in captures:
                 node = captures["macro.obj.def"][0]
-                signature = utils.get_capture_text(captures, "macro.obj.def")[0]
+                signature = node.text
                 is_macro = True
 
             else:
                 continue
 
+            if not signature:
+                continue
+
             ui.out_debug(f"Found {'macro' if is_macro else 'function'} {symbol_name} in {file} ...")
             signature_layout = KconfigSignature(
-                symbol_name, signature.decode().strip(), is_macro=is_macro, file=file.relative_to(state.kernel_dir)
+                symbol_name,
+                signature.decode().strip(),
+                is_macro=is_macro,
+                file=file.relative_to(kconfig_state.kernel_dir),
             )
             signature_layout.members = parser.get_custom_members(node)
             return signature_layout

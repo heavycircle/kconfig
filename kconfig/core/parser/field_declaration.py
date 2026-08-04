@@ -115,23 +115,3 @@ def parse_field_declaration(node: Node, state: KconfigParserState, dispatcher: N
             nested_struct.fields = nested_state.fields
             field_ref.field_type.layout = nested_struct
             STRUCT_MEMO_CACHE[struct_name] = nested_struct
-        # else:
-        #     # Anonyomus structure
-        #     nested_state = KconfigParserState(configs=list(state.configs))
-        #     dispatcher.dispatch(body_node, nested_state)
-        #
-        #     # Aggregate these results.
-        #     nested_layout = KconfigStruct(
-        #         f"anonymous_nested_{node.id}",
-        #         Path(""),
-        #         node.start_point[0],
-        #         fields=nested_state.fields,
-        #     )
-        #     field_ref.field_type.resolved_types.append(
-        #         KconfigResolvedType(
-        #             full_type,
-        #             Path(""),
-        #             state.fields[-1].guard,
-        #             nested_layout,
-        #         )
-        #     )
