@@ -59,11 +59,11 @@ def get_query(name: str) -> tree_sitter.Query:
     try:
         query_str = query_path.read_text()
         query = tree_sitter.Query(TS_LANG, query_str)
-
-        TS_CACHE[name] = query
-        return query
     except tree_sitter.QueryError as e:
         raise KconfigQuerySyntaxError(str(e)) from e
+    else:
+        TS_CACHE[name] = query
+        return query
 
 
 def parse_source(code: bytes) -> Node:
