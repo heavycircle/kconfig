@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import sympy
 from rich.table import Table
 
 from .logging import ui
@@ -35,7 +36,7 @@ def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
 
 def render_field_type_table(field: KconfigFieldType) -> None:
     """Render a KconfigFieldType as a table."""
-    if not field.resolved_type:
+    if not field.resolved_types:
         ui.out_info(f"No resolved types: '{field.original_type}'")
         return
 
@@ -45,8 +46,9 @@ def render_field_type_table(field: KconfigFieldType) -> None:
     table.add_column("File", style="dim")
     table.add_column("CONFIG Options", style="yellow")
 
-    for f in sorted(field.resolved_type, key=lambda i: (i.true_type, i.file)):
-        table.add_row(field.original_type, f.true_type, str(f.file), str(f.depends) or "")
+    for f in sorted(field.resolved_types, key=lambda i: (i.resolved_type, i.file)):
+        guard_str = "" if f.guard is sympy.true else str(f.guard)
+        table.add_row(field.original_type, f.resolved_type, str(f.file), guard_str)
 
     ui.raw.print(table)
 

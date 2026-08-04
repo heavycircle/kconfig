@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kconfig.core import cache, config, parser, utils
+from kconfig.core.cache import get_struct_location
+from kconfig.core.config import kconfig_state
+from kconfig.core.parser import dispatch
+from kconfig.core.query import run_struct_list
 from kconfig.exceptions import KconfigSymbolNotFoundError
+from kconfig.types import KconfigParserState
 from kconfig.ui import ui
 
 if TYPE_CHECKING:
@@ -13,35 +17,27 @@ if TYPE_CHECKING:
 
 
 def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
-    """Find the declaration of a structure inside the kernel directory.
+    """Find the definition of a structure inside the kernel directory."""
+    struct_info = get_struct_location(struct_name)
+    if struct_info is None:
+        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.kernel_dir.name)
 
-    Args:
-        kernel_root (Path): The kernel root to search for.
-        struct_name (str): Name of the structure to find.
+    structs = run_struct_list(file=struct_info.file_path)
+    goal_struct = [(n, s) for n, s in structs if s.original_name == struct_info.resolved_name]
 
-    Raises:
-        KconfigSymbolNotFoundError: Struct not found in any candidate file.
+    if not goal_struct:
+        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.kernel_dir.name)
+    if len(goal_struct) > 1:
+        ui.out_warning(f"{struct_name}: {len(goal_struct)} definitions found, defaulting to first ...")
 
-    Returns:
-        tuple[Node, KconfigStruct]: The struct's AST node and basic structure information.
+    return goal_struct[0]
 
-    """
-    struct_info = cache.get_struct_location(struct_name)
-    if not struct_info:
-        raise KconfigSymbolNotFoundError(struct_name, config.state.kernel_dir.name)
 
-    contents = struct_info.file.read_bytes()
-    for _, captures in parser.run_query("struct-list", contents):
-        struct_names = utils.get_capture_text(captures, "struct.name")
-        if not struct_names:
-            continue
+def get_kernel_struct(struct_name: str, recursive: bool) -> KconfigStruct:
+    """Get a structure from the kernel."""
+    node, layout = find_struct_declaration(struct_name)
 
-        found_name = struct_names[0].decode()
-        if found_name == struct_info.resolved_name:
-            rel_file = struct_info.file.relative_to(config.state.kernel_dir)
-            struct_info.file = rel_file
-
-            ui.out_debug(f"Found struct '{struct_name}' in {rel_file} ...")
-            return captures["struct.name"][0].parent, struct_info
-
-    raise KconfigSymbolNotFoundError(struct_name, config.state.kernel_dir.name)
+    state = KconfigParserState(recursive=recursive)
+    dispatch.dispatch(node, state)
+    layout.fields = state.fields
+    return layout

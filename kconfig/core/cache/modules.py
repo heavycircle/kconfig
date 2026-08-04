@@ -1,67 +1,63 @@
 from __future__ import annotations
 
+import hashlib
 import itertools
 import pickle
 import subprocess
-from typing import TYPE_CHECKING
+from pathlib import Path
 
-from kconfig.core import config, parser, utils
+from kconfig.core.config import CACHE_MODULE_DIR, kconfig_state
+from kconfig.core.query import run_struct_list
 from kconfig.exceptions import KconfigSubprocessFailedError
 from kconfig.ui import ui
 
-from .config import CACHE_MODULE_DIR
-
-if TYPE_CHECKING:
-    from kconfig.types import KconfigStructField
+MODULE_CACHE: dict[str, Path] = {}
+"""Cache containing module definition locations."""
 
 
-MODULE_CACHE: dict[str, dict[str, list[KconfigStructField]]] = {}
-"""Cache containing module capabilities."""
+def get_pahole_file(file: Path) -> Path:
+    """Get the stored pahole file for a given kernel module."""
+    file_hash = hashlib.sha256(str(file).replace("/", "_").encode()).hexdigest()
+    return CACHE_MODULE_DIR / f"{file.stem}_{file_hash}.h"
 
 
 def cache_module_structs() -> None:
-    """Build the struct layout cache for a compiled kernel module via ``pahole``.
-
-    Returns:
-        dict[str, KconfigStructFields]: Mapping of struct name to its field-to-type map.
-
-    """
+    """Build the module struct cache for a compiled kernel module via ``pahole``."""
     ui.out_info("Warming the module capability cache (this may take a minute) ...")
     MODULE_CACHE.clear()
 
-    ko_files = config.state.module_dir.rglob("*.ko")
-    vmlinux_files = list(config.state.module_dir.rglob("vmlinux"))
+    ko_files = kconfig_state.module_dir.rglob("*.ko")
+    vmlinux_files = list(kconfig_state.module_dir.rglob("vmlinux"))
     target_files = list(itertools.chain(ko_files, vmlinux_files))
     if not target_files:
-        ui.out_warning(f"No .ko files found in {config.state.module_dir}")
+        ui.out_warning(f"No .ko files found in {kconfig_state.module_dir}")
         return
 
     for file in target_files:
-        cmd = ["pahole", str(file)]
+        cmd = ["pahole", "-I", str(file)]
 
         result = subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
         if result.returncode != 0 or not result.stdout.strip():
             raise KconfigSubprocessFailedError("pahole", result.stderr.decode().strip())
 
-        for _, captures in parser.run_query("struct-list", result.stdout):
-            name_node = utils.get_capture_text(captures, "struct.name")
-            if not name_node:
-                continue
+        # Save the pahole output
+        with get_pahole_file(file).open("wb") as f:
+            f.write(result.stdout)
 
-            name = name_node[0].decode("utf-8", errors="replace")
-            fields = parser.parse_struct_specifier(captures["struct.name"][0].parent, file, recursive=False)
-            MODULE_CACHE.setdefault(file.as_posix(), {})[name] = fields
+        # Store the file. They should all match.
+        for _, struct in run_struct_list(code=result.stdout):
+            MODULE_CACHE[struct.original_name] = file
 
-    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with module_cache_file.open("wb") as f:
         pickle.dump(MODULE_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ui.out_success(f"Cached capabilities for {len(target_files)} modules!")
 
 
-def build_module_struct_cache() -> None:
-    """Load the typedef cache from disk, or build it if it's missing/invalid."""
-    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+def build_module_location_cache() -> None:
+    """Load the module cache from disk, or build it if it's missing/invalid."""
+    module_cache_file = CACHE_MODULE_DIR / f"cache_module_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     if not module_cache_file.exists():
         cache_module_structs()
         return
@@ -77,11 +73,6 @@ def build_module_struct_cache() -> None:
         cache_module_structs()
 
 
-def get_module_layout(struct_name: str) -> list[KconfigStructField] | None:
-    """Get the modules contained inside the structure."""
-    for module in MODULE_CACHE:
-        layout = MODULE_CACHE.get(module, {})
-        if struct_name in layout:
-            return layout[struct_name]
-
-    return None
+def get_module_location(struct_name: str) -> Path | None:
+    """Get the location of a struct definition in our modules."""
+    return MODULE_CACHE.get(struct_name)

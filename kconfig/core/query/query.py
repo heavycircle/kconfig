@@ -66,6 +66,11 @@ def get_query(name: str) -> tree_sitter.Query:
         raise KconfigQuerySyntaxError(str(e)) from e
 
 
+def parse_source(code: bytes) -> Node:
+    """Parse C source code and return its root node."""
+    return TS_PARSER.parse(code).root_node
+
+
 def run_query(query: str, code: bytes) -> KconfigQueryResult:
     """Run a tree-sitter query on C code.
 
