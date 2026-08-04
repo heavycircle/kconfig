@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-04
+
+### Changed
+
+- Fixed all Ruff issues.
+- Updated gather_struct_evidence to split across many functions.
+
 ## [1.1.0] - 2026-08-04
 
 ### Added
