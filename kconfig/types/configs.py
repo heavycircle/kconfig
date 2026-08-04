@@ -29,4 +29,3 @@ class KconfigEvidence:
 
         verb = "Found" if self.is_enabled else "Missing"
         return f"{verb} '{self.field_name}' in '{self.struct_name}'"
-

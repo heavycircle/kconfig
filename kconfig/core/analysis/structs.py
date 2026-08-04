@@ -13,7 +13,7 @@ from kconfig.ui import render_config_diff_table, ui
 from .guards import parse_config_guard
 
 if TYPE_CHECKING:
-    from kconfig.types import KconfigStruct
+    from kconfig.types import KconfigStruct, KconfigStructFields
 
 EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
 """Cache of structure names and their configuration evidence."""
@@ -52,10 +52,12 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
         visited.add(name)
 
     try:
-        layout = structs.get_module_struct(name)
+        module_struct = structs.get_module_struct(name)
     except KconfigSymbolNotFoundError as e:
         ui.out_warning(f"{e}, skipping ...")
         return []
+
+    layout: KconfigStructFields = {f.field_name: f.field_type.original_type for f in module_struct.fields}
 
     evidence_list: list[KconfigEvidence] = []
     for field in struct.fields:
@@ -66,19 +68,18 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
 
             # Check this field's type
             type_guard = parser.get_typedef_configs(field.field_type, module_type)
-            if type_guard.is_impossible:
+            if type_guard == sympy.false:
                 ui.out_warning(f"Impossible: Cannot match types ({field.field_name}): {module_type}")
                 continue
 
-            if type_guard.is_conditional:
-                type_expr = parse_config_guard(str(type_guard))
+            if type_guard is not sympy.true:
                 evidence_list.append(
                     KconfigEvidence(
                         name or "anonymous",
                         f"{field.field_type.original_type} {field.field_name}",
                         True,
-                        type_expr,
-                        type_expr,
+                        type_guard,
+                        type_guard,
                         kind="type",
                         type=layout[field.field_name],
                     )

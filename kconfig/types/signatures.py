@@ -31,4 +31,3 @@ class KconfigSignature:
     file: Path
 
     members: KconfigCustomMembers = field(default_factory=KconfigCustomMembers)
-

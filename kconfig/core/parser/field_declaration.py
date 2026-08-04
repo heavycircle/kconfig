@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING
 
 from kconfig.core.structs import find_struct_declaration
 from kconfig.exceptions import KconfigASTAnomalyError
-from kconfig.types import KconfigFieldType, KconfigParserState, KconfigResolvedType, KconfigStruct
-from kconfig.ui import ui
+from kconfig.types import KconfigFieldType, KconfigParserState, KconfigStruct
 
 from .dispatcher import NodeDispatch, dispatch
 
@@ -136,9 +135,3 @@ def parse_field_declaration(node: Node, state: KconfigParserState, dispatcher: N
         #             nested_layout,
         #         )
         #     )
-
-    # elif type_node.type == "type_identifer":
-    #     ui.out_debug(f"Looking up custom type: {base_type}")
-    #
-    #     resolved_type = get_symbol_typedef(base_type)
-    #     state.fields[-1].field_type = resolved_type

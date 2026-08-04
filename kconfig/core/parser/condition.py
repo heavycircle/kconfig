@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, cast
 
 import sympy
 
-from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError, KconfigUnsupportedArgumentError
+from kconfig.exceptions import KconfigASTAnomalyError, KconfigInvalidArgumentError
 from kconfig.ui import ui
 
 if TYPE_CHECKING:

@@ -10,4 +10,3 @@ KconfigQueryResult = list[tuple[int, KconfigQueryCapture]]
 
 KconfigStructFields = dict[str, str]
 """Fields inside a structure. Represented as { name: type }."""
-

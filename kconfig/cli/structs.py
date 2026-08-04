@@ -6,6 +6,7 @@ from kconfig.control_api import (
     analyze_struct_tree,
     build_module_location_cache,
     build_struct_location_cache,
+    build_typedef_location_cache,
     get_kernel_struct,
     kconfig_state,
 )
@@ -41,5 +42,6 @@ def struct_analyze(
     kernel_struct = get_kernel_struct(symbol, recursive=recursive)
 
     build_module_location_cache()
+    build_typedef_location_cache()
     ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
     analyze_struct_tree(kernel_struct, current=current)

@@ -5,16 +5,11 @@ import itertools
 import pickle
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from kconfig.core.config import CACHE_MODULE_DIR, kconfig_state
 from kconfig.core.query import run_struct_list
 from kconfig.exceptions import KconfigSubprocessFailedError
 from kconfig.ui import ui
-
-if TYPE_CHECKING:
-    from kconfig.types import KconfigStructField
-
 
 MODULE_CACHE: dict[str, Path] = {}
 """Cache containing module definition locations."""

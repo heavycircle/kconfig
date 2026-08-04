@@ -3,10 +3,9 @@ from __future__ import annotations
 import pickle
 from typing import TYPE_CHECKING
 
-from kconfig.core import config, query, utils
+from kconfig.core.config import CACHE_STRUCT_DIR, kconfig_state
+from kconfig.core.query import run_query
 from kconfig.ui import ui
-
-from .config import CACHE_STRUCT_DIR
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,10 +19,10 @@ def cache_typedef_locations() -> None:
     ui.out_info("Warming the typedef location cache (this may take a minute) ...")
     TYPEDEF_CACHE.clear()
 
-    for path in config.state.kernel_dir.rglob("*.[ch]"):
+    for path in kconfig_state.kernel_dir.rglob("*.[ch]"):
         contents = path.read_bytes()
 
-        for _, captures in query.run_query("typedef-list", contents):
+        for _, captures in run_query("typedef-list", contents):
             if "typedef.name" not in captures:
                 continue
 
@@ -32,7 +31,7 @@ def cache_typedef_locations() -> None:
             TYPEDEF_CACHE.setdefault(typedef_name.text.decode(), set()).add(path)
 
     # Cache structs
-    typedef_cache_file = CACHE_STRUCT_DIR / f"cache_typedef_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    typedef_cache_file = CACHE_STRUCT_DIR / f"cache_typedef_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with typedef_cache_file.open("wb") as f:
         pickle.dump(TYPEDEF_CACHE, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -41,7 +40,7 @@ def cache_typedef_locations() -> None:
 
 def build_typedef_location_cache() -> None:
     """Load the typedef cache from disk, or build it if it's missing/invalid."""
-    typedef_cache_file = CACHE_STRUCT_DIR / f"cache_typedef_{config.state.kernel_dir.name.replace('.', '_')}.pkl"
+    typedef_cache_file = CACHE_STRUCT_DIR / f"cache_typedef_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     if not typedef_cache_file.exists():
         cache_typedef_locations()
         return
