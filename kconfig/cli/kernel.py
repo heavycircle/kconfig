@@ -1,16 +1,45 @@
 from __future__ import annotations
 
 import tarfile
-from typing import Annotated
+import tempfile
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated
 
 import requests
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
 
-from kconfig.control_api import CACHE_KERNEL_DIR
-from kconfig.styling_api import render_kernel_version_table, ui
+from kconfig.control_api import (
+    CACHE_KERNEL_DIR,
+    download_source_package,
+    extract_source_package,
+    find_latest_source_package,
+    find_source_package,
+    list_source_packages,
+)
+from kconfig.exceptions import KconfigFileInvalidError, KconfigSubprocessFailedError, KconfigSymbolNotFoundError
+from kconfig.styling_api import render_distro_package_table, render_kernel_version_table, ui
+
+if TYPE_CHECKING:
+    from kconfig.core.cache.distro_kernel import DistroSourcePackage
 
 app = typer.Typer()
+
+UBUNTU_ARCHIVE = "http://archive.ubuntu.com/ubuntu"
+# Debian releases eventually move off the live mirror to the historical archive
+# (e.g. wheezy/Debian 7) -- try the live one first, then fall back.
+DEBIAN_ARCHIVES = ["http://deb.debian.org/debian", "http://archive.debian.org/debian"]
+
+
+def _make_download_progress() -> Progress:
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.description}"),
+        BarColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        transient=True,
+    )
 
 
 @app.command("list")
@@ -49,18 +78,8 @@ def kernel_fetch(
             r.raise_for_status()
             total_size = int(r.headers.get("content-length", 0))
 
-            with (
-                tarball_path.open("wb") as f,
-                Progress(
-                    SpinnerColumn(),
-                    TextColumn("[bold cyan]Downloading..."),
-                    BarColumn(),
-                    DownloadColumn(),
-                    TransferSpeedColumn(),
-                    transient=True,
-                ) as progress,
-            ):
-                task = progress.add_task("download", total=total_size)
+            with tarball_path.open("wb") as f, _make_download_progress() as progress:
+                task = progress.add_task(f"Downloading linux-{version}...", total=total_size)
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
                     progress.update(task, advance=len(chunk))
@@ -84,3 +103,185 @@ def kernel_fetch(
         else:
             ui.out_error(f"Failed to download: {e}")
         raise typer.Exit(1) from e
+
+
+def _resolve_ubuntu_codename(release: str) -> str:
+    """Accept either an Ubuntu codename (``noble``) or version number (``24.04``)."""
+    if not any(ch.isdigit() for ch in release):
+        return release
+
+    response = requests.get("https://changelogs.ubuntu.com/meta-release", timeout=(10, 30))
+    response.raise_for_status()
+
+    for block in response.text.split("\n\n"):
+        dist = version = None
+        for line in block.splitlines():
+            if line.startswith("Dist:"):
+                dist = line.removeprefix("Dist:").strip()
+            elif line.startswith("Version:"):
+                version = line.removeprefix("Version:").strip().split()[0]
+
+        if dist and version and version.startswith(release):
+            return dist
+
+    raise KconfigSymbolNotFoundError(release, "changelogs.ubuntu.com/meta-release")
+
+
+def _try_find_package(
+    archive_url: str, pockets: list[str], package: str, version: str | None
+) -> DistroSourcePackage | None:
+    try:
+        if version is not None:
+            return find_source_package(archive_url, pockets, package, version)
+        return find_latest_source_package(archive_url, pockets, package)
+    except KconfigSymbolNotFoundError:
+        return None
+
+
+def _find_distro_package(
+    archive_urls: list[str], pockets: list[str], package: str, version: str | None
+) -> tuple[str, DistroSourcePackage] | None:
+    """Search each archive (in order) for a package, returning (archive_used, package)."""
+    for archive_url in archive_urls:
+        pkg = _try_find_package(archive_url, pockets, package, version)
+        if pkg is not None:
+            return archive_url, pkg
+
+    return None
+
+
+def _list_distro_packages(archive_urls: list[str], pockets: list[str], package: str) -> list[DistroSourcePackage]:
+    """Search each archive (in order), returning the first one with any results."""
+    for archive_url in archive_urls:
+        found = list_source_packages(archive_url, pockets, package)
+        if found:
+            return found
+
+    return []
+
+
+def _fetch_distro_source(archive_urls: list[str], pockets: list[str], package: str, version: str | None) -> None:
+    """Shared ``fetch-ubuntu``/``fetch-debian`` implementation.
+
+    Downloads the real, patched distro source for a package (exact ``version``,
+    or the newest available if ``None``) and extracts it to
+    ``CACHE_KERNEL_DIR / f"linux-{version}"`` -- the same convention `fetch`
+    already uses, so every existing command's ``-k <version>`` works
+    immediately with no further changes.
+    """
+    ui.out_info(f"Looking up {package}={version or 'latest'} in {', '.join(pockets)} ...")
+    found = _find_distro_package(archive_urls, pockets, package, version)
+    if found is None:
+        ui.out_error(f"Could not find {package}={version or 'any version'} in {', '.join(pockets)}.")
+        raise typer.Exit(1)
+    archive_url, pkg = found
+
+    extract_dir = CACHE_KERNEL_DIR / f"linux-{pkg.version}"
+    if extract_dir.exists():
+        ui.out_info(f"Kernel {pkg.version} is already cached at {extract_dir}")
+        return
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        with _make_download_progress() as progress:
+            task = progress.add_task("Downloading...", total=None)
+
+            def on_progress(filename: str, downloaded: int, total: int) -> None:
+                progress.update(task, total=total, completed=downloaded, description=f"Downloading {filename}...")
+
+            try:
+                dsc_path = download_source_package(archive_url, pkg, tmp_path, on_progress=on_progress)
+            except (requests.exceptions.RequestException, KconfigFileInvalidError) as e:
+                ui.out_error(f"Download failed: {e}")
+                raise typer.Exit(1) from e
+
+        ui.out_info("Unpacking and applying patches (dpkg-source) ...")
+        try:
+            extract_source_package(dsc_path, extract_dir)
+        except KconfigSubprocessFailedError as e:
+            ui.out_error(str(e))
+            raise typer.Exit(1) from e
+
+    ui.out_success(f"Kernel {package}={pkg.version} ready at {extract_dir} -- use -k {pkg.version}")
+
+
+@app.command("fetch-ubuntu")
+def kernel_fetch_ubuntu(
+    version: Annotated[
+        str | None,
+        typer.Argument(help="Exact Ubuntu kernel package version, e.g. 6.8.0-31.31. Omit for the latest available."),
+    ] = None,
+    release: Annotated[
+        str, typer.Option("-r", "--release", help="Ubuntu release codename or version, e.g. noble or 24.04.")
+    ] = "noble",
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """Fetch the real Canonical-patched Ubuntu kernel source for a specific build.
+
+    Unlike ``fetch``, which only gets vanilla kernel.org source, this pulls the
+    actual patched tree a given Ubuntu kernel was built from -- needed to
+    correctly analyze a real Ubuntu vmlinux/module (distro kernels carry
+    extensive patches on top of their nominal upstream version).
+    """
+    codename = _resolve_ubuntu_codename(release)
+    pockets = [codename, f"{codename}-updates", f"{codename}-security"]
+    _fetch_distro_source([UBUNTU_ARCHIVE], pockets, package, version)
+
+
+@app.command("list-ubuntu")
+def kernel_list_ubuntu(
+    release: Annotated[
+        str, typer.Option("-r", "--release", help="Ubuntu release codename or version, e.g. noble or 24.04.")
+    ] = "noble",
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """List available Ubuntu kernel source package versions for a release.
+
+    Useful for matching a known kernel ABI (``uname -r``, e.g.
+    ``6.8.0-31-generic``) back to the exact source package version needed by
+    ``fetch-ubuntu``.
+    """
+    codename = _resolve_ubuntu_codename(release)
+    pockets = [codename, f"{codename}-updates", f"{codename}-security"]
+    render_distro_package_table(_list_distro_packages([UBUNTU_ARCHIVE], pockets, package))
+
+
+@app.command("fetch-debian")
+def kernel_fetch_debian(
+    version: Annotated[
+        str | None,
+        typer.Argument(
+            help="Exact Debian kernel package version, e.g. 3.2.68-1+deb7u2. Omit for the latest available."
+        ),
+    ] = None,
+    release: Annotated[
+        str, typer.Option("-r", "--release", help="Debian release codename, e.g. wheezy or bookworm.")
+    ] = "bookworm",
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """Fetch the real Debian-patched kernel source for a specific build.
+
+    Same idea as ``fetch-ubuntu``, for Debian. Old, no-longer-current releases
+    (e.g. wheezy/Debian 7) have moved off the live mirror to
+    archive.debian.org -- both are tried automatically.
+    """
+    pockets = [release, f"{release}-updates", f"{release}-security"]
+    _fetch_distro_source(DEBIAN_ARCHIVES, pockets, package, version)
+
+
+@app.command("list-debian")
+def kernel_list_debian(
+    release: Annotated[
+        str, typer.Option("-r", "--release", help="Debian release codename, e.g. wheezy or bookworm.")
+    ] = "bookworm",
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """List available Debian kernel source package versions for a release.
+
+    Useful for matching a known kernel ABI (``uname -r``, e.g.
+    ``3.2.0-4-amd64``) back to the exact source package version needed by
+    ``fetch-debian``.
+    """
+    pockets = [release, f"{release}-updates", f"{release}-security"]
+    render_distro_package_table(_list_distro_packages(DEBIAN_ARCHIVES, pockets, package))

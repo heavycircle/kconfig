@@ -10,7 +10,52 @@ from .logging import ui
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from kconfig.core.cache.distro_kernel import DistroSourcePackage
     from kconfig.types import KconfigFieldType
+
+
+def _extract_image_abis(binary_field: str) -> list[str]:
+    """Pull recognizable kernel ABI names (e.g. ``6.8.0-31-generic``) out of a raw ``Binary:`` field.
+
+    Debian/Ubuntu embed the kernel ABI in their ``linux-image-*`` binary
+    package names -- this is the bridge from a source package version back
+    to the ``uname -r``-style name someone actually has on a running system.
+    """
+    abis = []
+    for raw_name in binary_field.split(","):
+        name = raw_name.strip()
+        for prefix in ("linux-image-unsigned-", "linux-image-"):
+            if name.startswith(prefix) and "-dbg" not in name:
+                abis.append(name.removeprefix(prefix))
+                break
+
+    return abis
+
+
+def render_distro_package_table(packages: list[DistroSourcePackage]) -> None:
+    """Render available distro kernel source package versions as a Rich table.
+
+    Args:
+        packages (list[DistroSourcePackage]): Versions to display, e.g. from
+            ``list_source_packages``. Each row also shows the kernel ABI
+            name(s) (``uname -r`` style) that version's ``linux-image-*``
+            binaries produce, to bridge a known running kernel back to the
+            source version needed to fetch it.
+
+    """
+    if not packages:
+        ui.out_info("No package versions found.")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table.add_column("Version", style="bold white")
+    table.add_column("Kernel ABI(s)", style="yellow")
+
+    for pkg in packages:
+        abis = _extract_image_abis(pkg.binary)
+        table.add_row(pkg.version, ", ".join(abis) if abis else "-")
+
+    ui.raw.print(table)
 
 
 def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
@@ -32,6 +77,8 @@ def render_kernel_version_table(versions: list[str], kernel_dir: Path) -> None:
 
     for version in versions:
         table.add_row(version, str(kernel_dir / f"linux-{version}"))
+
+    ui.raw.print(table)
 
 
 def render_field_type_table(field: KconfigFieldType) -> None:
