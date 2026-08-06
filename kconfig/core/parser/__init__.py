@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .dispatcher import dispatch
-from .field_declaration import parse_field_declaration
+from .field_declaration import ANONYMOUS_FIELD_PREFIX, parse_field_declaration
 from .preproc_def import parse_preproc_def
 from .preproc_elif import parse_preproc_elif
 from .preproc_else import parse_preproc_else
@@ -11,6 +11,7 @@ from .type_definition import parse_type_definition
 from .typedefs import get_typedef_configs, resolve_typedef
 
 __all__ = [
+    "ANONYMOUS_FIELD_PREFIX",
     "dispatch",
     "get_custom_members",
     "get_typedef_configs",

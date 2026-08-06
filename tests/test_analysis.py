@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import sympy
 
 from kconfig.core.analysis.structs import gather_struct_evidence
+from kconfig.core.parser import ANONYMOUS_FIELD_PREFIX
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 
@@ -207,3 +208,90 @@ def test_anonymous_nested_struct_is_skipped_gracefully(monkeypatch: pytest.Monke
 
     # Must not crash -- just yields no evidence for the part it can't independently verify.
     assert gather_struct_evidence(root) == []
+
+
+def test_anonymous_struct_never_triggers_a_module_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: an anonymous struct's own-evidence lookup used to call
+    # get_module_struct("") anyway, which always fails and printed a
+    # confusing "Cannot find definition for '' in ..." warning. There's
+    # nothing to look up by name for an anonymous struct -- skip before ever
+    # calling out to the module lookup at all.
+    calls: list[str] = []
+
+    def fake_get_module_struct(name: str) -> KconfigStruct:
+        calls.append(name)
+        raise KconfigSymbolNotFoundError(name, "fake_kernel")
+
+    monkeypatch.setattr("kconfig.core.analysis.structs.structs.get_module_struct", fake_get_module_struct)
+
+    anon = KconfigStruct("", Path(), 1, fields=[KconfigStructField("x", KconfigFieldType("int"), sympy.true)])
+    gather_struct_evidence(anon)
+
+    assert calls == []
+
+
+def test_recursion_continues_through_an_anonymous_ancestor(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: when a struct's own evidence couldn't be determined
+    # (anonymous, or missing from the module), gather_struct_evidence used to
+    # return early and never recurse into its nested fields -- silently
+    # dropping evidence from any *named* struct reachable behind an
+    # anonymous or module-missing ancestor (a common C idiom: anonymous
+    # unions/structs wrapping named nested types).
+    named_nested = KconfigStruct(
+        "named_nested",
+        Path("named.h"),
+        1,
+        fields=[KconfigStructField("guarded", KconfigFieldType("int"), CONFIG_FOO)],
+    )
+    anon = KconfigStruct(
+        "",
+        Path(),
+        1,
+        fields=[KconfigStructField("n", KconfigFieldType("struct named_nested", layout=named_nested), sympy.true)],
+    )
+    root = KconfigStruct(
+        "outer",
+        Path("outer.h"),
+        1,
+        fields=[KconfigStructField("anon_field", KconfigFieldType("struct", layout=anon), sympy.true)],
+    )
+
+    named_nested_module = KconfigStruct("named_nested", Path("named.h"), 1, fields=[])  # "guarded" missing
+
+    def fake_get_module_struct(name: str) -> KconfigStruct:
+        if name == "named_nested":
+            return named_nested_module
+        raise KconfigSymbolNotFoundError(name, "fake_kernel")
+
+    monkeypatch.setattr("kconfig.core.analysis.structs.structs.get_module_struct", fake_get_module_struct)
+    monkeypatch.setattr("kconfig.core.analysis.structs.parser.get_typedef_configs", _fake_get_typedef_configs)
+
+    evidence = gather_struct_evidence(root)
+    assert len(evidence) == 1
+    assert evidence[0].struct_name == "named_nested"
+    assert evidence[0].constraints == sympy.Not(CONFIG_FOO)
+
+
+def test_anonymous_member_field_does_not_warn_about_uncontrollable_absence(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: a true anonymous member (`struct { ... };`, no declarator at
+    # all) gets a synthetic ANONYMOUS_FIELD_PREFIX-prefixed field name that can
+    # never appear in a compiled module's layout by construction -- it used to
+    # always fire a confusing, never-actionable "Uncontrollable field missing"
+    # warning for every single one.
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "kconfig.core.analysis.structs.ui.out_warning", lambda *a, **_k: warnings.append(" ".join(map(str, a)))
+    )
+
+    synthetic_name = f"{ANONYMOUS_FIELD_PREFIX}12345"
+    root = KconfigStruct(
+        "outer",
+        Path("outer.h"),
+        1,
+        fields=[KconfigStructField(synthetic_name, KconfigFieldType("struct"), sympy.true)],
+    )
+    module = KconfigStruct("outer", Path("outer.h"), 1, fields=[])  # synthetic field can never match
+    _patch_module_lookup(monkeypatch, module)
+
+    assert gather_struct_evidence(root) == []
+    assert warnings == []

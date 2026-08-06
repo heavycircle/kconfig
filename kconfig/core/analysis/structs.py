@@ -81,7 +81,11 @@ def _evaluate_field(
 
     if field.guard is not sympy.true:
         evidence.append(_presence_evidence(struct_name, field, has_match))
-    elif not has_match:
+    elif not has_match and not field.field_name.startswith(parser.ANONYMOUS_FIELD_PREFIX):
+        # A true anonymous member (`struct { ... };`, no variable name at all)
+        # gets a synthetic field_name that can never appear in a compiled
+        # module's layout by construction -- not a real absence, just nothing
+        # to check presence against.
         ui.out_warning(f"Uncontrollable field missing in '{struct_name}': '{field.field_name}'")
 
     return evidence
@@ -112,6 +116,12 @@ def _get_own_evidence(struct: KconfigStruct, key: str | int) -> list[KconfigEvid
         return EVALUATION_CACHE[key]
 
     name = struct.original_name
+    if not name:
+        # Anonymous struct: no name to look up a module-side layout by at
+        # all (pahole has nothing to key it by either) -- not an error, just
+        # nothing we can check field presence/type against.
+        return None
+
     layout = _get_module_layout(name)
     if layout is None:
         return None
@@ -141,6 +151,12 @@ def gather_struct_evidence(
 
     This method requires state.module_dir be set.
 
+    If this struct's own evidence can't be determined (anonymous, or missing
+    from the module entirely), it contributes no evidence of its own but
+    recursion into its nested fields still proceeds -- a named struct several
+    levels deep behind an anonymous or module-missing ancestor is common and
+    still independently checkable.
+
     Args:
         struct (KconfigStruct): The struct to parse.
         visited (set[str | int] | None): Keys on the current ancestor path, to
@@ -165,10 +181,7 @@ def gather_struct_evidence(
         return []
 
     own_evidence = _get_own_evidence(struct, key)
-    if own_evidence is None:
-        return []
-
-    evidence_list = list(own_evidence)
+    evidence_list = list(own_evidence) if own_evidence is not None else []
     branch_visited = visited | {key}
     for field in struct.fields:
         nested = field.field_type.layout

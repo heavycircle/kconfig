@@ -40,11 +40,11 @@ def find_struct_declaration(struct_name: str) -> tuple[Node, KconfigStruct]:
     """Find the definition of a module structure."""
     pahole_file = get_module_location(struct_name)
     if pahole_file is None:
-        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.kernel_dir.name)
+        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.module_dir.name)
 
     matches = _index_pahole_file(pahole_file).get(struct_name, [])
     if not matches:
-        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.kernel_dir.name)
+        raise KconfigSymbolNotFoundError(struct_name, kconfig_state.module_dir.name)
     if len(matches) > 1:
         ui.out_warning(f"{struct_name}: {len(matches)} definitions found, defaulting to first ...")
 

@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 
 STRUCT_MEMO_CACHE: dict[str, KconfigStruct] = {}
 
+ANONYMOUS_FIELD_PREFIX = "anonymous_"
+"""Synthetic field name for a declarator-less member (``struct { ... };`` with
+no variable name at all) -- guaranteed to never match any real field name a
+compiled module could report, since it's a parser-internal placeholder."""
+
 
 def unwrap_declarator(node: Node) -> tuple[str, str]:
     """Dig into a declarator node to separate a name from the type modifiers.
@@ -119,7 +124,7 @@ def _parse_declarator(
         raise KconfigASTAnomalyError(type_node.type, "Missing type text")
 
     if declarator_node is None:
-        mods, name = "", f"anonymous_{node.id}"
+        mods, name = "", f"{ANONYMOUS_FIELD_PREFIX}{node.id}"
     else:
         mods, name = unwrap_declarator(declarator_node)
 
