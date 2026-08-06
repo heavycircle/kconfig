@@ -19,6 +19,10 @@ class KconfigState:
 
         # Publicly-set variables
         self.recursive: bool = False
+        self.arch: str = "x86"
+        """Target architecture (an ``arch/<name>`` directory name, e.g. ``x86``,
+        ``arm64``) -- used to disambiguate structs defined once per architecture
+        (``arch/*/include/asm/*.h``) so the wrong one isn't silently picked."""
 
     def _check_kernel_dir(self, kernel_dir: Path) -> None:
         if not kernel_dir.exists():

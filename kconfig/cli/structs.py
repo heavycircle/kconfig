@@ -12,15 +12,16 @@ from kconfig.control_api import (
 )
 from kconfig.styling_api import render_struct, ui
 
-from .options import ConfigOpt, KernelOpt, ModuleOpt, OutputFormat, OutputOpt, RecursiveOpt, SymbolOpt
+from .options import ArchOpt, ConfigOpt, KernelOpt, ModuleOpt, OutputFormat, OutputOpt, RecursiveOpt, SymbolOpt
 
 app = typer.Typer()
 
 
 @app.command("find")
-def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False) -> None:
+def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = False, arch: ArchOpt = "x86") -> None:
     """Find a symbol inside the kernel."""
     kconfig_state.kernel_version = kernel
+    kconfig_state.arch = arch
 
     build_struct_location_cache()
     struct = get_kernel_struct(symbol, recursive=recursive)
@@ -37,10 +38,12 @@ def struct_analyze(  # noqa: PLR0913
     current: ConfigOpt = None,
     recursive: RecursiveOpt = False,
     output: OutputOpt = OutputFormat.table,
+    arch: ArchOpt = "x86",
 ) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""
     kconfig_state.kernel_version = kernel
     kconfig_state.module_dir = modules
+    kconfig_state.arch = arch
 
     build_struct_location_cache()
     if output is not OutputFormat.json:

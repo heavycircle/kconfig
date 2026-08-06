@@ -13,6 +13,15 @@ class OutputFormat(str, Enum):
     json = "json"
 
 
+ArchOpt = Annotated[
+    str,
+    Option(
+        "-a",
+        "--arch",
+        help="Target architecture (an arch/<name> directory, e.g. x86, arm64) for disambiguating per-arch structs.",
+    ),
+]
+
 ConfigOpt = Annotated[
     str | None,
     Option("-c", "--current", help="Current .config. Only reports incorrect settings."),

@@ -70,15 +70,16 @@ def build_struct_location_cache() -> None:
         cache_struct_locations()
 
 
-def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, str]:
+def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, int, str]:
     """Rank a source file that contains a struct definition.
 
     Args:
         path (tuple[Path, int]): The (path, line number) to check.
 
     Returns:
-        tuple[int, int, int, str]: A rank of this file, tiered by its path,
-            location in its path, the length of the path, then its name.
+        tuple[int, int, int, int, str]: A rank of this file, tiered by its
+            path, whether it's the wrong architecture, location in its path,
+            the length of the path, then its name.
 
     """
     file, line = path
@@ -88,9 +89,10 @@ def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, str]:
     # the path" -- otherwise e.g. tools/include/linux/types.h (a userspace-tool
     # mirror header) ties with the real include/linux/types.h.
     try:
-        top = file.relative_to(kconfig_state.kernel_dir).parts[0]
-    except (ValueError, IndexError):
-        top = None
+        parts = file.relative_to(kconfig_state.kernel_dir).parts
+    except ValueError:
+        parts = ()
+    top = parts[0] if parts else None
 
     if top == "include" and is_header:
         tier = 0
@@ -101,7 +103,13 @@ def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, str]:
     else:
         tier = 3
 
-    return (tier, line, len(file.parts), file.as_posix())
+    # Within arch/, every architecture's header defines the same struct name
+    # (e.g. thread_info) at its own, unrelated line number -- without this,
+    # a non-matching architecture could win purely because its definition
+    # happens to start earlier in its own file, which is not a real signal.
+    wrong_arch = int(tier == 1 and (len(parts) < 2 or parts[1] != kconfig_state.arch))
+
+    return (tier, wrong_arch, line, len(file.parts), file.as_posix())
 
 
 def get_struct_location(struct_name: str) -> KconfigStruct | None:

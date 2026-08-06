@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-06
+
+### Added
+
+- `-a`/`--arch` option for `struct find`/`struct analyze`, to disambiguate
+  structs defined once per architecture (`arch/*/include/asm/*.h`) instead of
+  silently picking whichever one happens to tiebreak first.
+
+### Fixed
+
+- `_rank_file` picked an arbitrary, frequently wrong architecture's struct
+  definition (e.g. `arch/parisc/.../thread_info.h` for an x86_64 vmlinux) by
+  tiebreaking on line number alone, with no architecture awareness at all --
+  a real, previously-undiscovered cause of false "Impossible layout" results.
+- `find_struct_declaration` (module-side) referenced the kernel source
+  directory instead of the module directory in its "cannot find" error.
+- Anonymous structs no longer trigger (and then catch) a doomed module
+  lookup by name -- they're skipped up front instead of via a misleading
+  "Cannot find definition for ''" warning.
+- `gather_struct_evidence` no longer aborts recursion into a struct's nested
+  fields just because that struct's own evidence couldn't be determined
+  (anonymous, or missing from the module) -- a named struct reachable behind
+  such a struct was previously silently dropped entirely.
+- True anonymous C11 members (no variable name at all) no longer trigger an
+  "Uncontrollable field missing" warning for their synthetic placeholder
+  name, which could never match a real module field by construction --
+  this also kept leaking into `--output json`'s stdout ahead of the document.
+
 ## [1.1.4] - 2026-08-06
 
 ### Added
@@ -68,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created a base Python project for running tree-sitter queries on the Linux
   kernel source.
 
-[unreleased]: https://github.com/heavycircle/kconfig/compare/v1.1.4...HEAD
+[unreleased]: https://github.com/heavycircle/kconfig/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/heavycircle/kconfig/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/heavycircle/kconfig/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/heavycircle/kconfig/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/heavycircle/kconfig/compare/v1.1.1...v1.1.2

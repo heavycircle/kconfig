@@ -32,6 +32,7 @@ def _reset_module_caches() -> None:
     TYPEDEF_CACHE.clear()
     TYPEDEF_RESOLVE_CACHE.clear()
     STRUCT_MEMO_CACHE.clear()
+    kconfig_state.arch = "x86"
 
 
 @pytest.fixture

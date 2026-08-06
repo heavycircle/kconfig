@@ -61,6 +61,39 @@ def test_rank_file_prefers_real_include_over_tools_mirror(kernel_dir: Path) -> N
     assert location.file_path == kernel_dir / "include" / "types.h"
 
 
+def test_rank_file_prefers_the_target_architecture(kernel_dir: Path) -> None:
+    # Regression: every arch/*/include/asm/ header can define the same struct
+    # name (e.g. thread_info) at its own, unrelated line number. Ranking by
+    # line number as a tiebreaker (with no architecture awareness at all) let
+    # a completely wrong architecture win just because its definition happened
+    # to start earlier in its own file -- confirmed against a real vmlinux,
+    # where arch/parisc's thread_info (line 9) beat arch/x86's (line 56) for
+    # an x86_64 target, comparing the wrong struct shape entirely.
+    (kernel_dir / "arch" / "parisc" / "include" / "asm").mkdir(parents=True)
+    (kernel_dir / "arch" / "parisc" / "include" / "asm" / "thread_info.h").write_text(
+        "struct thread_info { int preempt_count; };\n"
+    )
+
+    (kernel_dir / "arch" / "x86" / "include" / "asm").mkdir(parents=True)
+    x86_header = (kernel_dir / "arch" / "x86" / "include" / "asm" / "thread_info.h").open("w")
+    x86_header.write("\n" * 10)  # push the real definition to a later line than parisc's
+    x86_header.write("struct thread_info { unsigned long flags; unsigned int cpu; };\n")
+    x86_header.close()
+
+    kconfig_state.arch = "x86"
+    build_struct_location_cache()
+    location = get_struct_location("thread_info")
+    assert location is not None
+    assert location.file_path == kernel_dir / "arch" / "x86" / "include" / "asm" / "thread_info.h"
+
+    # A different target architecture must resolve to its own definition instead.
+    kconfig_state.arch = "parisc"
+    build_struct_location_cache()
+    location = get_struct_location("thread_info")
+    assert location is not None
+    assert location.file_path == kernel_dir / "arch" / "parisc" / "include" / "asm" / "thread_info.h"
+
+
 def test_module_struct_lookup_reads_pahole_text_not_the_binary(
     kernel_dir: Path,  # noqa: ARG001 -- needed so kconfig_state.kernel_dir is set
     tmp_path: Path,
