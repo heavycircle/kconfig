@@ -358,9 +358,7 @@ def kernel_search_ubuntu(
 
 @app.command("search-debian")
 def kernel_search_debian(
-    kernel_version: Annotated[
-        str, typer.Argument(help="Kernel version or ABI substring to search for, e.g. 3.2.0-4.")
-    ],
+    kernel_version: Annotated[str, typer.Argument(help="Kernel version or ABI substring to search for, e.g. 3.2.0-4.")],
     package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
 ) -> None:
     """Search every known Debian release for a matching kernel version.
