@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import sympy
 
 from kconfig.core.analysis.structs import gather_struct_evidence
+from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
 
 if TYPE_CHECKING:
@@ -130,7 +131,45 @@ def test_evaluation_cache_short_circuits_repeated_calls(monkeypatch: pytest.Monk
     first = gather_struct_evidence(root)
     second = gather_struct_evidence(root)
     assert calls == ["outer"]
-    assert first is second
+    assert first == second
+
+
+def test_shared_struct_evidence_is_included_once_not_per_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: a widely-shared type (list_head/spinlock_t in the real kernel)
+    # referenced from many fields used to have its evidence re-extended once per
+    # reference, which compounds combinatorially in a large, heavily-shared struct
+    # graph like task_struct's. It must be included exactly once.
+    shared = KconfigStruct(
+        "shared", Path("shared.h"), 1, fields=[KconfigStructField("guarded", KconfigFieldType("int"), CONFIG_FOO)]
+    )
+    root = KconfigStruct(
+        "outer",
+        Path("outer.h"),
+        1,
+        fields=[
+            KconfigStructField("a", KconfigFieldType("struct shared", layout=shared), sympy.true),
+            KconfigStructField("b", KconfigFieldType("struct shared", layout=shared), sympy.true),
+            KconfigStructField("c", KconfigFieldType("struct shared", layout=shared), sympy.true),
+        ],
+    )
+
+    outer_module = KconfigStruct(
+        "outer",
+        Path("outer.h"),
+        1,
+        fields=[KconfigStructField(n, KconfigFieldType("struct shared"), sympy.true) for n in "abc"],
+    )
+    shared_module = KconfigStruct("shared", Path("shared.h"), 1, fields=[])  # "guarded" missing from the module
+
+    def fake_get_module_struct(name: str) -> KconfigStruct:
+        return {"outer": outer_module, "shared": shared_module}[name]
+
+    monkeypatch.setattr("kconfig.core.analysis.structs.structs.get_module_struct", fake_get_module_struct)
+    monkeypatch.setattr("kconfig.core.analysis.structs.parser.get_typedef_configs", _fake_get_typedef_configs)
+
+    evidence = gather_struct_evidence(root)
+    assert len(evidence) == 1
+    assert evidence[0].struct_name == "shared"
 
 
 def test_cycle_protection_stops_self_referencing_structs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,4 +181,29 @@ def test_cycle_protection_stops_self_referencing_structs(monkeypatch: pytest.Mon
     _patch_module_lookup(monkeypatch, module)
 
     # Must terminate rather than recurse infinitely.
+    assert gather_struct_evidence(root) == []
+
+
+def test_anonymous_nested_struct_is_skipped_gracefully(monkeypatch: pytest.MonkeyPatch) -> None:
+    # An anonymous nested struct has no name (KconfigStruct.original_name == ""), so
+    # there's nothing to look up in the compiled module's layout for it independently.
+    nested = KconfigStruct("", Path(), 3, fields=[KconfigStructField("x", KconfigFieldType("int"), sympy.true)])
+    root = KconfigStruct(
+        "outer",
+        Path("outer.h"),
+        1,
+        fields=[KconfigStructField("point", KconfigFieldType("struct", layout=nested), sympy.true)],
+    )
+    outer_field = KconfigStructField("point", KconfigFieldType("struct"), sympy.true)
+    outer_module = KconfigStruct("outer", Path("outer.h"), 1, fields=[outer_field])
+
+    def fake_get_module_struct(name: str) -> KconfigStruct:
+        if name == "outer":
+            return outer_module
+        raise KconfigSymbolNotFoundError(name, "fake_kernel")
+
+    monkeypatch.setattr("kconfig.core.analysis.structs.structs.get_module_struct", fake_get_module_struct)
+    monkeypatch.setattr("kconfig.core.analysis.structs.parser.get_typedef_configs", _fake_get_typedef_configs)
+
+    # Must not crash -- just yields no evidence for the part it can't independently verify.
     assert gather_struct_evidence(root) == []

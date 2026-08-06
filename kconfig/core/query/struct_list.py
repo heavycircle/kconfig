@@ -50,6 +50,11 @@ def run_struct_list(*, code: bytes | None = None, file: Path | None = None) -> l
         body = file.read_bytes()
     else:
         raise ValueError("Must provide either 'code' or 'file'.")
+
+    # Computed once up front: re-splitting the whole body inside the loop below
+    # is quadratic, and a single pahole dump can define tens of thousands of structs.
+    body_lines = body.splitlines()
+
     structs: list[tuple[Node, KconfigStruct]] = []
     for _, captures in run_query("struct-list", body):
         if "struct.name" not in captures:
@@ -64,7 +69,7 @@ def run_struct_list(*, code: bytes | None = None, file: Path | None = None) -> l
             file_path = file
             file_line = struct_def.start_point[0] + 1
         else:
-            def_line = body.splitlines()[struct_def.start_point[0] - 1].decode()
+            def_line = body_lines[struct_def.start_point[0] - 1].decode()
             match = PAHOLE_PATTERN.search(def_line)
             if not match:
                 raise KconfigASTAnomalyError(def_line, "Cannot parse for definition line")

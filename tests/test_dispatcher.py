@@ -149,3 +149,114 @@ def test_non_recursive_struct_field_has_no_layout() -> None:
     state = parse_and_dispatch(source, recursive=False)
     outer_field = next(f for f in state.fields if f.field_name == "a")
     assert outer_field.field_type.layout is None
+
+
+def test_anonymous_struct_field_gets_an_inline_layout() -> None:
+    source = b"struct outer { struct { int x; int y; } point; };"
+    state = parse_and_dispatch(source, recursive=True)
+
+    point = next(f for f in state.fields if f.field_name == "point")
+    assert point.field_type.layout is not None
+    assert point.field_type.layout.original_name == ""
+    assert [f.field_name for f in point.field_type.layout.fields] == ["x", "y"]
+
+
+def test_anonymous_union_field_gets_an_inline_layout() -> None:
+    source = b"struct outer { union { int a; float b; } u; };"
+    state = parse_and_dispatch(source, recursive=True)
+
+    union_field = next(f for f in state.fields if f.field_name == "u")
+    assert union_field.field_type.layout is not None
+    assert [f.field_name for f in union_field.field_type.layout.fields] == ["a", "b"]
+
+
+def test_truly_anonymous_member_still_gets_a_layout() -> None:
+    # No declarator at all -- a C11 anonymous struct member.
+    source = b"struct outer { struct { int z; }; };"
+    state = parse_and_dispatch(source, recursive=True)
+
+    assert len(state.fields) == 1
+    field = state.fields[0]
+    assert field.field_name.startswith("anonymous_")
+    assert field.field_type.layout is not None
+    assert [f.field_name for f in field.field_type.layout.fields] == ["z"]
+
+
+def test_anonymous_struct_field_has_no_layout_when_not_recursive() -> None:
+    source = b"struct outer { struct { int x; } point; };"
+    state = parse_and_dispatch(source, recursive=False)
+
+    point = next(f for f in state.fields if f.field_name == "point")
+    assert point.field_type.layout is None
+
+
+def test_multiple_declarators_sharing_one_type_are_all_recorded() -> None:
+    # `struct list_head *next, *prev;` parses as ONE field_declaration with two
+    # declarators -- a very common C idiom that used to silently drop everything
+    # after the first declarator.
+    state = parse_and_dispatch(b"struct foo { struct list_head *next, *prev; };")
+    fields = {f.field_name: f.field_type.original_type for f in state.fields}
+    assert fields == {"next": "struct list_head *", "prev": "struct list_head *"}
+
+
+def test_anonymous_struct_with_multiple_declarators_is_resolved_once() -> None:
+    # Regression: resolving an anonymous struct/union body per-declarator (instead
+    # of once per field_declaration) re-dispatches the same body once per
+    # declarator, which compounds multiplicatively with nesting depth. Three
+    # levels of "2 declarators sharing an anonymous type" should be O(1) parses
+    # per level (6 fields total), not 2*2*2 = 8 re-parses of the deepest level.
+    source = b"""
+    struct outer {
+        struct {
+            struct {
+                struct { int x, y; } a, b;
+            } c, d;
+        } e, f;
+    };
+    """
+    state = parse_and_dispatch(source, recursive=True)
+    e, f = (next(fld for fld in state.fields if fld.field_name == n) for n in ("e", "f"))
+    assert e.field_type.layout is f.field_type.layout
+
+    c, d = e.field_type.layout.fields
+    assert c.field_type.layout is d.field_type.layout
+
+    a, b = c.field_type.layout.fields
+    assert a.field_type.layout is b.field_type.layout
+    assert [fld.field_name for fld in a.field_type.layout.fields] == ["x", "y"]
+
+
+def test_plain_multi_declarator_field() -> None:
+    state = parse_and_dispatch(b"struct foo { int a, b, c; };")
+    assert [f.field_name for f in state.fields] == ["a", "b", "c"]
+    assert {f.field_type.original_type for f in state.fields} == {"int"}
+
+
+def test_multiple_declarators_of_a_recursively_resolved_struct(kernel_dir: Path) -> None:
+    source = b"struct inner { int x; };\nstruct outer { struct inner *a, *b; };\n"
+    (kernel_dir / "foo.h").write_bytes(source)
+    build_struct_location_cache()
+
+    node, _ = find_struct_declaration("outer")
+    state = KconfigParserState(recursive=True)
+    dispatch.dispatch(node, state)
+
+    fields = {f.field_name: f for f in state.fields}
+    assert fields["a"].field_type.layout is not None
+    assert fields["b"].field_type.layout is not None
+    assert [f.field_name for f in fields["a"].field_type.layout.fields] == ["x"]
+
+
+def test_unresolvable_nested_struct_is_skipped_not_fatal(kernel_dir: Path) -> None:
+    # "bar" is referenced but never defined anywhere -- this must not crash the
+    # whole recursive parse, just leave that one field's layout unresolved.
+    (kernel_dir / "foo.h").write_bytes(b"struct outer { struct bar missing; int after; };\n")
+    build_struct_location_cache()
+
+    node, _ = find_struct_declaration("outer")
+    state = KconfigParserState(recursive=True)
+    dispatch.dispatch(node, state)
+
+    fields = {f.field_name: f for f in state.fields}
+    assert fields["missing"].field_type.layout is None
+    assert fields["after"].field_type.original_type == "int"

@@ -18,4 +18,5 @@ CACHE_STRUCT_DIR = CACHE_DIR / "structs"
 # Ensure they all exist
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_KERNEL_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_MODULE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_STRUCT_DIR.mkdir(parents=True, exist_ok=True)

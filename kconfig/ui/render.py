@@ -38,7 +38,25 @@ def render_call(func: Callable[P, T], message: str, *args: P.args, **kwargs: P.k
         return func(*args, **kwargs)
 
 
-def render_struct(struct: KconfigStruct, parent: Tree | None = None, visited: set[str] | None = None) -> None:
+def _struct_collapse_note(struct: KconfigStruct, visited: set[str], seen: set[str]) -> str | None:
+    """Return a note to render in place of expanding a struct, or None to expand it.
+
+    Anonymous structs share the same (empty) resolved_name without being the
+    same type, so only named structs are eligible for de-duplication.
+    """
+    if struct.resolved_name in visited:
+        return "[italic red](cyclic ref)[/]"
+    if struct.resolved_name and struct.resolved_name in seen:
+        return "[dim italic](see above)[/]"
+    return None
+
+
+def render_struct(
+    struct: KconfigStruct,
+    parent: Tree | None = None,
+    visited: set[str] | None = None,
+    seen: set[str] | None = None,
+) -> None:
     """Print a structure tree to the console.
 
     Recursively renders nested structs as sub-branches. When ``parent`` is
@@ -48,35 +66,45 @@ def render_struct(struct: KconfigStruct, parent: Tree | None = None, visited: se
         struct (KconfigStruct): Struct to render.
         parent (Tree | None): Existing Rich ``Tree`` node to attach to as a
             child. If ``None`` a new root tree is created and printed.
-        visited (set[str] | None): The list of visited nodes inside the tree.
+        visited (set[str] | None): Names on the current ancestor path, used
+            to detect a struct nested inside itself.
+        seen (set[str] | None): Every named struct already fully expanded
+            anywhere in this tree so far (not just the current ancestor
+            path). Shared across the whole render so that types reused many
+            times over (``list_head``, `spinlock_t`, ...) are only expanded
+            once instead of blowing up the tree combinatorially.
 
     """
     if visited is None:
         visited = set()
+    if seen is None:
+        seen = set()
 
     title = f"[bold cyan]{struct.original_name}[/]"
     if struct.resolved_name != struct.original_name:
         title += f" [dim italic] -> {struct.resolved_name}[/]"
     title += f" [dim]({struct.file_path}:{struct.file_line})[/]"
 
-    if struct.resolved_name in visited:
+    note = _struct_collapse_note(struct, visited, seen)
+    if note is not None:
         if parent:
-            parent.add(f"{title} [italic red](cyclic ref)[/]")
+            parent.add(f"{title} {note}")
         return
+    if struct.resolved_name:
+        seen.add(struct.resolved_name)
 
     tree = parent.add(title) if parent else Tree(f"Layout: {title}")
     branch = visited | {struct.resolved_name}
 
     for field in struct.fields:
         field_text = f"[green]{field.field_type.original_type}[/] [white]{field.field_name}[/]"
-        if field.field_type.layout:
-            field_text += f"[dim italic yellow] (Requires: {field.guard})[/]"
-
-        if field.field_type.layout:
-            field_node = tree.add(field_text)
-            render_struct(field.field_type.layout, parent=field_node, visited=branch)
-        else:
+        if field.field_type.layout is None:
             tree.add(field_text)
+            continue
+
+        field_text += f"[dim italic yellow] (Requires: {field.guard})[/]"
+        field_node = tree.add(field_text)
+        render_struct(field.field_type.layout, parent=field_node, visited=branch, seen=seen)
 
     if not parent:
         ui.raw.print(tree)

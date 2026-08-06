@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from .query import run_query
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+# A real alias's value is just another bare identifier (e.g. `#define foo bar`).
+# `preproc_arg` captures the *entire* macro body verbatim, so without this filter
+# every `#define NAME <expression>` in the tree -- numeric constants, flags,
+# function-like macro bodies, ... -- would be treated as an alias too.
+_BARE_IDENTIFIER = re.compile(r"[A-Za-z_]\w*\Z")
 
 
 def run_alias_list(file: Path) -> dict[str, set[tuple[str, Path]]]:
@@ -35,6 +42,8 @@ def run_alias_list(file: Path) -> dict[str, set[tuple[str, Path]]]:
 
         alias_key = name_node.text.decode(errors="replace")
         alias_val = target_node.text.decode(errors="replace")
+        if not _BARE_IDENTIFIER.match(alias_val):
+            continue
 
         alias_dict.setdefault(alias_key, set()).add((alias_val, file))
 

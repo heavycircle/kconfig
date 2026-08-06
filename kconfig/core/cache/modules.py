@@ -44,12 +44,14 @@ def cache_module_structs() -> None:
             raise KconfigSubprocessFailedError("pahole", result.stderr.decode().strip())
 
         # Save the pahole output
-        with get_pahole_file(file).open("wb") as f:
+        pahole_file = get_pahole_file(file)
+        with pahole_file.open("wb") as f:
             f.write(result.stdout)
 
-        # Store the file. They should all match.
+        # Store the pahole dump, not the binary -- that's what struct lookups
+        # actually parse back later (see core/structs/module.py).
         for _, struct in run_struct_list(code=result.stdout):
-            MODULE_CACHE[struct.original_name] = file
+            MODULE_CACHE[struct.original_name] = pahole_file
 
     module_cache_file = CACHE_MODULE_DIR / f"cache_module_{kconfig_state.kernel_dir.name.replace('.', '_')}.pkl"
     with module_cache_file.open("wb") as f:

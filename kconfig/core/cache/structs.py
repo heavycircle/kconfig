@@ -84,7 +84,14 @@ def _rank_file(path: tuple[Path, int]) -> tuple[int, int, int, str]:
     file, line = path
     is_header = file.suffix == ".h"
 
-    top = next((p for p in file.parts if p in ("include", "arch")), None)
+    # Relative to the kernel root, not just "does 'include' appear anywhere in
+    # the path" -- otherwise e.g. tools/include/linux/types.h (a userspace-tool
+    # mirror header) ties with the real include/linux/types.h.
+    try:
+        top = file.relative_to(kconfig_state.kernel_dir).parts[0]
+    except (ValueError, IndexError):
+        top = None
+
     if top == "include" and is_header:
         tier = 0
     elif top == "arch" and is_header:

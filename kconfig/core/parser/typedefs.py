@@ -4,6 +4,7 @@ import sympy
 
 from kconfig.core.cache import get_typedef_locations
 from kconfig.core.query import parse_source
+from kconfig.core.utils import strip_type_modifiers
 from kconfig.types import KconfigFieldType, KconfigParserState, KconfigResolvedType
 
 from .dispatcher import dispatch
@@ -60,14 +61,15 @@ def get_typedef_configs(field_type: KconfigFieldType, module_type: str) -> sympy
             expansion, otherwise the guard(s) under which it's reachable.
 
     """
-    base_name = field_type.original_type.split()[0]
-    if base_name == module_type:
+    if field_type.original_type == module_type:
         return sympy.true
 
+    base_name, _ = strip_type_modifiers(field_type.original_type)
     candidates = resolve_typedef(base_name)
     if not candidates:
         return sympy.true
 
     field_type.resolved_types = candidates
-    matching = [c.guard for c in candidates if c.resolved_type.split()[0] == module_type]
+    module_base, _ = strip_type_modifiers(module_type)
+    matching = [c.guard for c in candidates if strip_type_modifiers(c.resolved_type)[0] == module_base]
     return sympy.Or(*matching)

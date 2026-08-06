@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pickle
+import re
 from typing import TYPE_CHECKING
 
 from kconfig.core.config import CACHE_STRUCT_DIR, kconfig_state
@@ -12,6 +13,13 @@ if TYPE_CHECKING:
 
 TYPEDEF_CACHE: dict[str, set[Path]] = {}
 """Cached locations of typedefs."""
+
+# A real macro-style typedef's value is just another bare identifier (e.g.
+# `#define Elf_Sym Elf64_Sym`). `preproc_arg` captures the *entire* macro body
+# verbatim, so without this filter every #define in the tree -- numeric
+# constants, flags, function-like macro bodies, ... -- would be cached as a
+# "typedef" too (real typedefs, i.e. `type_definition` nodes, aren't affected).
+_BARE_IDENTIFIER = re.compile(r"[A-Za-z_]\w*\Z")
 
 
 def cache_typedef_locations() -> None:
@@ -29,6 +37,12 @@ def cache_typedef_locations() -> None:
             typedef_name = captures["typedef.name"][0]
             if not typedef_name.text:
                 continue
+
+            if typedef_name.parent is not None and typedef_name.parent.type == "preproc_def":
+                type_node = captures.get("typedef.type", [None])[0]
+                type_text = type_node.text.decode(errors="replace") if type_node and type_node.text else ""
+                if not _BARE_IDENTIFIER.match(type_text):
+                    continue
 
             TYPEDEF_CACHE.setdefault(typedef_name.text.decode(), set()).add(path)
 

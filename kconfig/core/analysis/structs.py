@@ -15,8 +15,9 @@ from .guards import parse_config_guard
 if TYPE_CHECKING:
     from kconfig.types import KconfigStruct, KconfigStructField, KconfigStructFields
 
-EVALUATION_CACHE: dict[str, list[KconfigEvidence]] = {}
-"""Cache of structure names and their configuration evidence."""
+EVALUATION_CACHE: dict[str | int, list[KconfigEvidence]] = {}
+"""Cache of a struct's own field evidence (no recursion), keyed by name -- or,
+for anonymous structs (which have no name), by object identity."""
 
 
 def _get_module_layout(name: str) -> KconfigStructFields | None:
@@ -86,7 +87,49 @@ def _evaluate_field(
     return evidence
 
 
-def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = None) -> list[KconfigEvidence]:
+def _struct_key(struct: KconfigStruct) -> str | int:
+    """A cache/visited key for a struct.
+
+    Its name, or -- for an anonymous struct, which has none -- its object
+    identity. Two anonymous structs are never the same type just because
+    they share the (empty) name.
+    """
+    return struct.original_name or id(struct)
+
+
+def _get_own_evidence(struct: KconfigStruct, key: str | int) -> list[KconfigEvidence] | None:
+    """Evidence from this struct's own fields, without recursing into nested layouts.
+
+    Memoized by ``key`` since it depends only on the struct and the module's
+    layout, not on how or how many times it was reached.
+
+    Returns:
+        list[KconfigEvidence] | None: The evidence found (possibly empty), or
+            ``None`` if the module doesn't have this struct at all.
+
+    """
+    if key in EVALUATION_CACHE:
+        return EVALUATION_CACHE[key]
+
+    name = struct.original_name
+    layout = _get_module_layout(name)
+    if layout is None:
+        return None
+
+    struct_name = name or "anonymous"
+    evidence_list: list[KconfigEvidence] = []
+    for field in struct.fields:
+        field_evidence = _evaluate_field(struct_name, field, layout)
+        if field_evidence is not None:
+            evidence_list.extend(field_evidence)
+
+    EVALUATION_CACHE[key] = evidence_list
+    return evidence_list
+
+
+def gather_struct_evidence(
+    struct: KconfigStruct, visited: set[str | int] | None = None, included: set[str | int] | None = None
+) -> list[KconfigEvidence]:
     """Get all evidence for a struct.
 
     This method parses the struct's fields, checking the config guards inside
@@ -100,7 +143,13 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
 
     Args:
         struct (KconfigStruct): The struct to parse.
-        visited (set[str] | None): The set of visited structs.
+        visited (set[str | int] | None): Keys on the current ancestor path, to
+            detect a struct nested inside itself.
+        included (set[str | int] | None): Every struct already incorporated
+            into this analysis, anywhere -- not just the current ancestor
+            path -- so a type referenced from hundreds of places (very common
+            for things like ``list_head``/``spinlock_t``) contributes its
+            evidence once instead of once per reference.
 
     Returns:
         list[KconfigEvidence]: CONFIG evidence found inside this struct.
@@ -108,34 +157,30 @@ def gather_struct_evidence(struct: KconfigStruct, visited: set[str] | None = Non
     """
     if visited is None:
         visited = set()
+    if included is None:
+        included = set()
 
-    # Check the cache, stop cycles.
-    name = struct.original_name
-    if name and name in visited:
-        return []
-    if name and name in EVALUATION_CACHE:
-        return EVALUATION_CACHE[name]
-    if name:
-        visited.add(name)
-
-    layout = _get_module_layout(name)
-    if layout is None:
+    key = _struct_key(struct)
+    if key in visited:
         return []
 
-    struct_name = name or "anonymous"
-    evidence_list: list[KconfigEvidence] = []
+    own_evidence = _get_own_evidence(struct, key)
+    if own_evidence is None:
+        return []
+
+    evidence_list = list(own_evidence)
+    branch_visited = visited | {key}
     for field in struct.fields:
-        field_evidence = _evaluate_field(struct_name, field, layout)
-        if field_evidence is None:
+        nested = field.field_type.layout
+        if nested is None:
             continue
 
-        evidence_list.extend(field_evidence)
-        if field.field_type.layout is not None:
-            evidence_list.extend(gather_struct_evidence(field.field_type.layout, visited=visited))
+        nested_key = _struct_key(nested)
+        if nested_key in included:
+            continue
+        included.add(nested_key)
 
-    if name:
-        visited.remove(name)
-        EVALUATION_CACHE[name] = evidence_list
+        evidence_list.extend(gather_struct_evidence(nested, visited=branch_visited, included=included))
 
     return evidence_list
 
