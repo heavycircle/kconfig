@@ -28,8 +28,13 @@ def run_alias_list(file: Path) -> dict[str, set[tuple[str, Path]]]:
         if "alias.name" not in captures:
             continue
 
-        alias_key = captures["alias.name"][0].text.decode(errors="replace")
-        alias_val = captures["alias.target"][0].text.decode(errors="replace")
+        name_node = captures["alias.name"][0]
+        target_node = captures["alias.target"][0]
+        if not name_node.text or not target_node.text:
+            continue
+
+        alias_key = name_node.text.decode(errors="replace")
+        alias_val = target_node.text.decode(errors="replace")
 
         alias_dict.setdefault(alias_key, set()).add((alias_val, file))
 

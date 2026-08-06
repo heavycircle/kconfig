@@ -78,7 +78,8 @@ def kernel_fetch(
         raise typer.Exit(1) from e
 
     except requests.exceptions.HTTPError as e:
-        if r.status_code == 404:
+        status_code = e.response.status_code if e.response is not None else None
+        if status_code == 404:
             ui.out_error(f"Version {version} not found.")
         else:
             ui.out_error(f"Failed to download: {e}")

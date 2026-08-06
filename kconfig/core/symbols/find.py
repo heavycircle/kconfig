@@ -29,8 +29,8 @@ def get_function_signature(kernel_root: Path, symbol_name: str) -> KconfigSignat
             if "func.name" not in captures:
                 continue
 
-            found_name = captures["func.name"][0].text.decode()
-            if found_name != symbol_name:
+            name_node = captures["func.name"][0]
+            if not name_node.text or name_node.text.decode() != symbol_name:
                 continue
 
             is_macro = False

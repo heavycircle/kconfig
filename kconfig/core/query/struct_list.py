@@ -41,12 +41,15 @@ def run_struct_list(*, code: bytes | None = None, file: Path | None = None) -> l
         list[KconfigStruct]: List of structures found in this code.
 
     """
-    if code is None and file is None:
-        raise ValueError("Must provide either 'code' or 'file'.")
     if code is not None and file is not None:
         raise ValueError("Provide either 'code' or 'file', not both.")
 
-    body = code or file.read_bytes()
+    if code is not None:
+        body = code
+    elif file is not None:
+        body = file.read_bytes()
+    else:
+        raise ValueError("Must provide either 'code' or 'file'.")
     structs: list[tuple[Node, KconfigStruct]] = []
     for _, captures in run_query("struct-list", body):
         if "struct.name" not in captures:
@@ -54,6 +57,8 @@ def run_struct_list(*, code: bytes | None = None, file: Path | None = None) -> l
 
         struct_name = captures["struct.name"][0]
         struct_def = captures["struct.def"][0]
+        if not struct_name.text:
+            continue
 
         if file is not None:
             file_path = file

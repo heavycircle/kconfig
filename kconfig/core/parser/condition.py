@@ -65,7 +65,7 @@ def _parse_call_expression(node: Node) -> sympy.Expr:
 
     # Our supported functions have one argument.
     arg_name = func_args.named_children[0]
-    if not arg_name or not arg_name.text:
+    if not arg_name.text:
         raise KconfigASTAnomalyError(func_args.type, "No arguments!")
 
     return sympy.Symbol(arg_name.text.decode())
@@ -102,8 +102,9 @@ def _parse_binary_expression(node: Node) -> sympy.Expr:
     elif op.text.decode() == "||":
         expr = sympy.Or(parse_condition_node(left), parse_condition_node(right))
     else:
-        ui.out_warning(f"Unsupported binary_expression: {node.text.decode()}")
-        expr = sympy.Symbol(node.text.decode())
+        fallback_name = node.text.decode() if node.text else node.type
+        ui.out_warning(f"Unsupported binary_expression: {fallback_name}")
+        expr = sympy.Symbol(fallback_name)
 
     return cast("sympy.Expr", expr)
 
@@ -136,8 +137,9 @@ def _parse_unary_expression(node: Node) -> sympy.Expr:
     if op.text.decode() == "!":
         expr = sympy.Not(parse_condition_node(argument))
     else:
-        ui.out_warning(f"Unsupported unary_expression: {node.text.decode()}")
-        expr = sympy.Symbol(node.text.decode())
+        fallback_name = node.text.decode() if node.text else node.type
+        ui.out_warning(f"Unsupported unary_expression: {fallback_name}")
+        expr = sympy.Symbol(fallback_name)
 
     return cast("sympy.Expr", expr)
 

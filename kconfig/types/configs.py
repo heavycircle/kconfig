@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from typing_extensions import override
+
 if TYPE_CHECKING:
     from sympy import Expr
 
@@ -22,6 +24,7 @@ class KconfigEvidence:
     kind: Literal["field", "type"] = "field"
     type: str | None = None
 
+    @override
     def __str__(self) -> str:
         """Return a human-readable string describing this evidence."""
         if self.kind == "type":

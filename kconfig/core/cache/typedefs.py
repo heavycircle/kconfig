@@ -27,6 +27,8 @@ def cache_typedef_locations() -> None:
                 continue
 
             typedef_name = captures["typedef.name"][0]
+            if not typedef_name.text:
+                continue
 
             TYPEDEF_CACHE.setdefault(typedef_name.text.decode(), set()).add(path)
 
