@@ -46,6 +46,25 @@ class DistroSourcePackage:
         """The ``.dsc`` control file naming (and controlling extraction of) this package."""
         return next(f for f in self.files if f.name.endswith(".dsc"))
 
+    @property
+    def image_abis(self) -> list[str]:
+        """Kernel ABI names (``uname -r`` style, e.g. ``6.8.0-31-generic``) this package's images produce.
+
+        Pulled from the raw ``Binary:`` field's ``linux-image-*``/
+        ``linux-image-unsigned-*`` entries (skipping ``-dbg`` variants) --
+        the bridge from a source package version back to the ABI name someone
+        actually has on a running system.
+        """
+        abis = []
+        for raw_name in self.binary.split(","):
+            name = raw_name.strip()
+            for prefix in ("linux-image-unsigned-", "linux-image-"):
+                if name.startswith(prefix) and "-dbg" not in name:
+                    abis.append(name.removeprefix(prefix))
+                    break
+
+        return abis
+
 
 def _parse_sources_stanza(stanza: str, package: str, version: str | None) -> DistroSourcePackage | None:
     """Parse one Sources-index stanza; return it if it matches, else None.

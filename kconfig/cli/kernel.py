@@ -18,7 +18,7 @@ from kconfig.control_api import (
     list_source_packages,
 )
 from kconfig.exceptions import KconfigFileInvalidError, KconfigSubprocessFailedError, KconfigSymbolNotFoundError
-from kconfig.styling_api import render_distro_package_table, render_kernel_version_table, ui
+from kconfig.styling_api import render_distro_package_table, render_distro_search_table, render_kernel_version_table, ui
 
 if TYPE_CHECKING:
     from kconfig.core.cache.distro_kernel import DistroSourcePackage
@@ -29,6 +29,20 @@ UBUNTU_ARCHIVE = "http://archive.ubuntu.com/ubuntu"
 # Debian releases eventually move off the live mirror to the historical archive
 # (e.g. wheezy/Debian 7) -- try the live one first, then fall back.
 DEBIAN_ARCHIVES = ["http://deb.debian.org/debian", "http://archive.debian.org/debian"]
+# Debian has no equivalent of Ubuntu's meta-release listing, so the codenames
+# to search are hardcoded -- newest first, stable and rarely changing.
+DEBIAN_CODENAMES = [
+    "trixie",
+    "bookworm",
+    "bullseye",
+    "buster",
+    "stretch",
+    "jessie",
+    "wheezy",
+    "squeeze",
+    "lenny",
+    "etch",
+]
 
 
 def _make_download_progress() -> Progress:
@@ -105,14 +119,16 @@ def kernel_fetch(
         raise typer.Exit(1) from e
 
 
-def _resolve_ubuntu_codename(release: str) -> str:
-    """Accept either an Ubuntu codename (``noble``) or version number (``24.04``)."""
-    if not any(ch.isdigit() for ch in release):
-        return release
+def _fetch_ubuntu_releases() -> list[tuple[str, str]]:
+    """Every ``(codename, version)`` pair from Ubuntu's meta-release listing.
 
+    Covers every release back to warty/04.10, not just currently-supported
+    ones -- confirmed when this was first built.
+    """
     response = requests.get("https://changelogs.ubuntu.com/meta-release", timeout=(10, 30))
     response.raise_for_status()
 
+    releases = []
     for block in response.text.split("\n\n"):
         dist = version = None
         for line in block.splitlines():
@@ -121,10 +137,27 @@ def _resolve_ubuntu_codename(release: str) -> str:
             elif line.startswith("Version:"):
                 version = line.removeprefix("Version:").strip().split()[0]
 
-        if dist and version and version.startswith(release):
+        if dist and version:
+            releases.append((dist, version))
+
+    return releases
+
+
+def _resolve_ubuntu_codename(release: str) -> str:
+    """Accept either an Ubuntu codename (``noble``) or version number (``24.04``)."""
+    if not any(ch.isdigit() for ch in release):
+        return release
+
+    for dist, version in _fetch_ubuntu_releases():
+        if version.startswith(release):
             return dist
 
     raise KconfigSymbolNotFoundError(release, "changelogs.ubuntu.com/meta-release")
+
+
+def _list_ubuntu_codenames() -> list[str]:
+    """Every known Ubuntu codename, for searching across all of them at once."""
+    return [dist for dist, _version in _fetch_ubuntu_releases()]
 
 
 def _try_find_package(
@@ -285,3 +318,55 @@ def kernel_list_debian(
     """
     pockets = [release, f"{release}-updates", f"{release}-security"]
     render_distro_package_table(_list_distro_packages(DEBIAN_ARCHIVES, pockets, package))
+
+
+def _matches_kernel_version(pkg: DistroSourcePackage, kernel_version: str) -> bool:
+    """Whether a package's source version or any of its kernel ABIs contain ``kernel_version``."""
+    return kernel_version in pkg.version or any(kernel_version in abi for abi in pkg.image_abis)
+
+
+def _search_releases(
+    archive_urls: list[str], codenames: list[str], package: str, kernel_version: str
+) -> list[tuple[str, DistroSourcePackage]]:
+    """Search every given release's pockets for a package version matching ``kernel_version``."""
+    results: list[tuple[str, DistroSourcePackage]] = []
+    for codename in codenames:
+        ui.out_info(f"Checking {codename} ...")
+        pockets = [codename, f"{codename}-updates", f"{codename}-security"]
+        packages = _list_distro_packages(archive_urls, pockets, package)
+        results.extend((codename, pkg) for pkg in packages if _matches_kernel_version(pkg, kernel_version))
+
+    return results
+
+
+@app.command("search-ubuntu")
+def kernel_search_ubuntu(
+    kernel_version: Annotated[
+        str, typer.Argument(help="Kernel version or ABI substring to search for, e.g. 6.8.0 or 6.8.0-31.")
+    ],
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """Search every known Ubuntu release for a matching kernel version.
+
+    For when you don't know which release a given kernel build (e.g. from
+    ``uname -r``) belongs to -- checks every codename instead of requiring
+    ``-r`` up front. Slower than ``list-ubuntu`` (one query per release).
+    """
+    codenames = _list_ubuntu_codenames()
+    render_distro_search_table(_search_releases([UBUNTU_ARCHIVE], codenames, package, kernel_version))
+
+
+@app.command("search-debian")
+def kernel_search_debian(
+    kernel_version: Annotated[
+        str, typer.Argument(help="Kernel version or ABI substring to search for, e.g. 3.2.0-4.")
+    ],
+    package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
+) -> None:
+    """Search every known Debian release for a matching kernel version.
+
+    Same idea as ``search-ubuntu``, for Debian. Debian has no equivalent of
+    Ubuntu's meta-release listing, so the releases checked are a hardcoded,
+    newest-first codename list (``DEBIAN_CODENAMES``).
+    """
+    render_distro_search_table(_search_releases(DEBIAN_ARCHIVES, DEBIAN_CODENAMES, package, kernel_version))

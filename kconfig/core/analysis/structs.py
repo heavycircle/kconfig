@@ -185,8 +185,58 @@ def gather_struct_evidence(
     return evidence_list
 
 
-def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None) -> None:
-    """Analyze a tree of structs and render a table of enabled configs.
+def _config_dict(model: dict[sympy.Basic, bool]) -> dict[str, bool]:
+    """Reduce a sympy satisfiability model to its ``CONFIG_*`` entries, string-keyed for JSON."""
+    return {str(sym): val for sym, val in model.items() if str(sym).startswith("CONFIG_")}
+
+
+ConstraintRow = tuple[sympy.Expr, "list[KconfigEvidence]", bool, sympy.Basic]
+"""One resolved constraint: (constraint, its evidence, whether it conflicted, cumulative state after it)."""
+
+
+def _resolve_constraints(constraints: dict[sympy.Expr, list[KconfigEvidence]]) -> tuple[list[ConstraintRow], bool]:
+    """Fold every constraint into a cumulative state, in application order.
+
+    Returns:
+        tuple[list[ConstraintRow], bool]: Per-constraint rows (for rendering),
+            and whether any constraint conflicted with the accumulated state.
+
+    """
+    global_state = sympy.true
+    global_conflict = False
+    rows: list[ConstraintRow] = []
+
+    for con, ev_list in constraints.items():
+        next_state = sympy.simplify_logic(sympy.And(global_state, con))
+        conflict = next_state == sympy.false or not sympy.satisfiable(next_state)
+        if conflict:
+            global_conflict = True
+        else:
+            global_state = next_state
+        rows.append((con, ev_list, conflict, global_state))
+
+    return rows, global_conflict
+
+
+def _render_constraint_table(root_name: str, rows: list[ConstraintRow]) -> Table:
+    table = Table(title=f"Analysis: {root_name}")
+    table.add_column("Applied Constraint", style="yellow")
+    table.add_column("Status", justify="center")
+    table.add_column("Evidence & Raw Guard", style="cyan")
+    table.add_column("Cumulative State", style="green")
+
+    for con, ev_list, conflict, state in rows:
+        ev_str = "\n".join({f"- {e} [dim italic](Raw Guard: {e.raw_guard})[/]" for e in ev_list})
+        if conflict:
+            table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str, "[dim red]UNSOLVABLE[/]")
+        else:
+            table.add_row(str(con), "[bold green]OK[/]", ev_str, str(state))
+
+    return table
+
+
+def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, output_format: str = "table") -> None:
+    """Analyze a tree of structs and report the enabled configs.
 
     This method aims to complete. On error, it will print the error and keep
     running. These errors either mean an error in the parsing of the kernel
@@ -195,47 +245,47 @@ def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None) 
     Args:
         root_struct (KconfigStruct): The struct to recursively parse.
         current (str | None): Path to a .config file for rendering a diff.
+        output_format (str): Either ``"table"`` (a human-readable Rich table,
+            the default) or ``"json"`` (a single JSON document on stdout, for
+            scripting -- no Rich table or status messages are printed).
 
     """
+    as_json = output_format == "json"
+
     evidence = gather_struct_evidence(root_struct)
     if not evidence:
-        ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}'")
+        if as_json:
+            ui.raw.print_json(data={"conflict": False, "config": {}})
+        else:
+            ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}'")
         return
 
     constraints: dict[sympy.Expr, list[KconfigEvidence]] = {}
     for e in evidence:
         constraints.setdefault(e.constraints, []).append(e)
 
-    global_state = sympy.true
-    global_conflict = False
+    rows, global_conflict = _resolve_constraints(constraints)
+    global_state = rows[-1][3]
 
-    table = Table(title=f"Analysis: {root_struct.original_name}")
-    table.add_column("Applied Constraint", style="yellow")
-    table.add_column("Status", justify="center")
-    table.add_column("Evidence & Raw Guard", style="cyan")
-    table.add_column("Cumulative State", style="green")
-
-    for con, ev_list in constraints.items():
-        ev_str = "\n".join({f"- {e} [dim italic](Raw Guard: {e.raw_guard})[/]" for e in ev_list})
-
-        # Check for conflicts
-        next_state = sympy.simplify_logic(sympy.And(global_state, con))
-        if next_state == sympy.false or not sympy.satisfiable(next_state):
-            global_conflict = True
-            table.add_row(str(con), "[bold red]CONFLICT[/]", ev_str, "[dim red]UNSOLVABLE[/]")
-        else:
-            global_state = next_state
-            table.add_row(str(con), "[bold green]OK[/]", ev_str, str(global_state))
-
-    ui.out_info("Rendering table ...")
-    ui.raw.print(table)
+    if not as_json:
+        ui.out_info("Rendering table ...")
+        ui.raw.print(_render_constraint_table(root_struct.original_name, rows))
 
     if global_conflict:
-        ui.out_error("Impossible layout! Conflicting requirements detected.")
+        if as_json:
+            ui.raw.print_json(data={"conflict": True})
+        else:
+            ui.out_error("Impossible layout! Conflicting requirements detected.")
+        return
+
+    models = list(sympy.satisfiable(global_state, all_models=True))
+
+    if as_json:
+        result = {"conflict": False, "config": _config_dict(models[0]), "valid_configurations": len(models)}
+        ui.raw.print_json(data=result)
         return
 
     ui.out_success(f"Final Required Configuration: {global_state}")
-    models = list(sympy.satisfiable(global_state, all_models=True))
     ui.out_success(f"Found {len(models)} valid configurations to satisfy these constraints.")
 
     if current and models[0]:

@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Annotated
 
 from typer import Argument, Option
+
+
+class OutputFormat(str, Enum):
+    """Output format for a command that reports an analysis result."""
+
+    table = "table"
+    json = "json"
+
 
 ConfigOpt = Annotated[
     str | None,
@@ -17,6 +26,11 @@ KernelOpt = Annotated[
 ModuleOpt = Annotated[
     str | None,
     Option("-m", "--modules", help="Path to reference kernel module(s)"),
+]
+
+OutputOpt = Annotated[
+    OutputFormat,
+    Option("-o", "--output", help="Output format for the analysis result."),
 ]
 
 RecursiveOpt = Annotated[

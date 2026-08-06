@@ -131,6 +131,24 @@ def test_list_source_packages_dedupes_and_sorts_newest_first(monkeypatch: pytest
     assert packages[0].binary == "linux-image-6.8.0-31-generic, linux-headers-6.8.0-31-generic"
 
 
+def test_image_abis_extracts_only_image_binaries() -> None:
+    pkg = DistroSourcePackage(
+        directory="pool/main/l/linux",
+        version="6.8.0-31.31",
+        binary=(
+            "linux-image-6.8.0-31-generic, linux-image-unsigned-6.8.0-31-generic, "
+            "linux-headers-6.8.0-31-generic, linux-image-6.8.0-31-generic-dbgsym"
+        ),
+    )
+
+    assert pkg.image_abis == ["6.8.0-31-generic", "6.8.0-31-generic"]
+
+
+def test_image_abis_empty_when_no_binary_field() -> None:
+    pkg = DistroSourcePackage(directory="pool/main/l/linux", version="1.0-1")
+    assert pkg.image_abis == []
+
+
 class _FakeStreamResponse:
     """Stands in for ``requests.get(..., stream=True)``'s context-manager interface."""
 

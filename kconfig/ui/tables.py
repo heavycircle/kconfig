@@ -14,24 +14,6 @@ if TYPE_CHECKING:
     from kconfig.types import KconfigFieldType
 
 
-def _extract_image_abis(binary_field: str) -> list[str]:
-    """Pull recognizable kernel ABI names (e.g. ``6.8.0-31-generic``) out of a raw ``Binary:`` field.
-
-    Debian/Ubuntu embed the kernel ABI in their ``linux-image-*`` binary
-    package names -- this is the bridge from a source package version back
-    to the ``uname -r``-style name someone actually has on a running system.
-    """
-    abis = []
-    for raw_name in binary_field.split(","):
-        name = raw_name.strip()
-        for prefix in ("linux-image-unsigned-", "linux-image-"):
-            if name.startswith(prefix) and "-dbg" not in name:
-                abis.append(name.removeprefix(prefix))
-                break
-
-    return abis
-
-
 def render_distro_package_table(packages: list[DistroSourcePackage]) -> None:
     """Render available distro kernel source package versions as a Rich table.
 
@@ -52,8 +34,32 @@ def render_distro_package_table(packages: list[DistroSourcePackage]) -> None:
     table.add_column("Kernel ABI(s)", style="yellow")
 
     for pkg in packages:
-        abis = _extract_image_abis(pkg.binary)
-        table.add_row(pkg.version, ", ".join(abis) if abis else "-")
+        table.add_row(pkg.version, ", ".join(pkg.image_abis) if pkg.image_abis else "-")
+
+    ui.raw.print(table)
+
+
+def render_distro_search_table(results: list[tuple[str, DistroSourcePackage]]) -> None:
+    """Render matches from a cross-release kernel version search as a Rich table.
+
+    Args:
+        results (list[tuple[str, DistroSourcePackage]]): ``(release, package)``
+            pairs, e.g. from searching every known release for a kernel
+            version -- for when you don't yet know which release a kernel
+            build belongs to.
+
+    """
+    if not results:
+        ui.out_info("No matching kernel versions found in any release.")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table.add_column("Release", style="bold white")
+    table.add_column("Version", style="bold white")
+    table.add_column("Kernel ABI(s)", style="yellow")
+
+    for release, pkg in results:
+        table.add_row(release, pkg.version, ", ".join(pkg.image_abis) if pkg.image_abis else "-")
 
     ui.raw.print(table)
 

@@ -12,7 +12,7 @@ from kconfig.control_api import (
 )
 from kconfig.styling_api import render_struct, ui
 
-from .options import ConfigOpt, KernelOpt, ModuleOpt, RecursiveOpt, SymbolOpt  # noqa: TC001
+from .options import ConfigOpt, KernelOpt, ModuleOpt, OutputFormat, OutputOpt, RecursiveOpt, SymbolOpt
 
 app = typer.Typer()
 
@@ -30,18 +30,25 @@ def struct_find(kernel: KernelOpt, symbol: SymbolOpt, recursive: RecursiveOpt = 
 
 
 @app.command("analyze")
-def struct_analyze(
-    kernel: KernelOpt, modules: ModuleOpt, symbol: SymbolOpt, current: ConfigOpt = None, recursive: RecursiveOpt = False
+def struct_analyze(  # noqa: PLR0913
+    kernel: KernelOpt,
+    modules: ModuleOpt,
+    symbol: SymbolOpt,
+    current: ConfigOpt = None,
+    recursive: RecursiveOpt = False,
+    output: OutputOpt = OutputFormat.table,
 ) -> None:
     """Compare a kernel struct's layout against compiled module binaries."""
     kconfig_state.kernel_version = kernel
     kconfig_state.module_dir = modules
 
     build_struct_location_cache()
-    ui.out_info(f"Building{' recursive ' if recursive else ' '}layout: '{symbol}'")
+    if output is not OutputFormat.json:
+        ui.out_info(f"Building{' recursive ' if recursive else ' '}layout: '{symbol}'")
     kernel_struct = get_kernel_struct(symbol, recursive=recursive)
 
     build_module_location_cache()
     build_typedef_location_cache()
-    ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
-    analyze_struct_tree(kernel_struct, current=current)
+    if output is not OutputFormat.json:
+        ui.out_info(f"Analyzing CONFIG Options: '{symbol}'")
+    analyze_struct_tree(kernel_struct, current=current, output_format=output.value)
