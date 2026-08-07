@@ -56,6 +56,17 @@ def _make_download_progress() -> Progress:
     )
 
 
+def kernel_tarball_urls(version: str) -> list[str]:
+    """Return kernel.org tarball URLs for ``version``, newest-compatible form first."""
+    major = version.split(".", maxsplit=1)[0]
+    urls = [f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version}.tar.xz"]
+    # kernel.org names an initial release `linux-X.Y.tar.xz`; only patch releases
+    # get a third component. Try the exact form first, then the initial-release form.
+    if version.endswith(".0"):
+        urls.append(f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version[:-2]}.tar.xz")
+    return urls
+
+
 @app.command("list")
 def kernel_list() -> None:
     """List the available cached kernels."""
@@ -77,32 +88,40 @@ def kernel_fetch(
     """Fetch a kernel from Linux."""
     ui.out_info(f"Fetching Kernel: {version}")
 
-    major = version.split(".", maxsplit=1)[0]
-    url = f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version}.tar.xz"
-
-    tarball_path = CACHE_KERNEL_DIR / f"linux-{version}.tar.xz"
+    urls = kernel_tarball_urls(version)
     extract_dir = CACHE_KERNEL_DIR / f"linux-{version}"
     if extract_dir.exists():
         ui.out_info(f"Kernel {version} is already cached at {extract_dir}")
         return
 
+    tarball_path = CACHE_KERNEL_DIR / f"linux-{version}.tar.xz"
     try:
-        # Get the file from the URL.
-        with requests.get(url, stream=True, timeout=(10, 60)) as r:
-            r.raise_for_status()
-            total_size = int(r.headers.get("content-length", 0))
+        for url in urls:
+            # Get the file from the URL.
+            tarball_path = CACHE_KERNEL_DIR / url.rsplit("/", 1)[-1]
+            with requests.get(url, stream=True, timeout=(10, 60)) as r:
+                if r.status_code == 404 and url != urls[-1]:
+                    ui.out_info(f"Version {version} not found at {url}; trying initial-release name.")
+                    continue
+                r.raise_for_status()
+                total_size = int(r.headers.get("content-length", 0))
 
-            with tarball_path.open("wb") as f, _make_download_progress() as progress:
-                task = progress.add_task(f"Downloading linux-{version}...", total=total_size)
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    progress.update(task, advance=len(chunk))
+                with tarball_path.open("wb") as f, _make_download_progress() as progress:
+                    task = progress.add_task(f"Downloading {tarball_path.name}...", total=total_size)
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        progress.update(task, advance=len(chunk))
 
-        ui.out_info("Extracting tarball...")
-        with tarfile.open(tarball_path, "r:xz") as tar:
-            tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
+            ui.out_info("Extracting tarball...")
+            with tarfile.open(tarball_path, "r:xz") as tar:
+                tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
 
-        tarball_path.unlink()
+            tarball_path.unlink()
+            source_dir = CACHE_KERNEL_DIR / tarball_path.name.removesuffix(".tar.xz")
+            if source_dir.exists() and not extract_dir.exists():
+                source_dir.rename(extract_dir)
+            break
+
         ui.out_success(f"Kernel {version} ready at {extract_dir}")
     except requests.exceptions.ReadTimeout as e:
         ui.out_error("Download timed out. The kernel.org mirror was too slow.")
