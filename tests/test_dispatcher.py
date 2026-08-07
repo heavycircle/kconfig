@@ -141,6 +141,38 @@ def test_recursive_struct_field_layout(kernel_dir: Path) -> None:
     assert [f.field_name for f in outer_field.field_type.layout.fields] == ["x"]
 
 
+def test_named_nested_struct_does_not_inherit_the_referencing_guard(kernel_dir: Path) -> None:
+    # Regression: a named nested struct has its own independent definition
+    # (found via find_struct_declaration, possibly in a different file
+    # entirely) -- its fields' guards must reflect only what's #ifdef'd
+    # *within that definition*, not whatever guard was active at the site
+    # that referenced it. Confirmed against a real vmlinux: tty_port_operations
+    # (genuinely unconditional) had every field falsely guarded by CONFIG_SMP,
+    # inherited from an unrelated #ifdef CONFIG_SMP many levels up the
+    # reference chain that eventually reached it.
+    source = b"""
+    struct inner { int x; };
+
+    struct outer {
+    #ifdef CONFIG_SMP
+        struct inner a;
+    #endif
+    };
+    """
+    (kernel_dir / "foo.h").write_bytes(source)
+    build_struct_location_cache()
+
+    node, _ = find_struct_declaration("outer")
+    state = KconfigParserState(recursive=True)
+    dispatch.dispatch(node, state)
+
+    outer_field = next(f for f in state.fields if f.field_name == "a")
+    assert outer_field.guard == sympy.Symbol("CONFIG_SMP")
+
+    inner_field = outer_field.field_type.layout.fields[0]
+    assert inner_field.guard is sympy.true
+
+
 def test_non_recursive_struct_field_has_no_layout() -> None:
     source = b"""
     struct inner { int x; };
@@ -224,6 +256,37 @@ def test_anonymous_struct_with_multiple_declarators_is_resolved_once() -> None:
     a, b = c.field_type.layout.fields
     assert a.field_type.layout is b.field_type.layout
     assert [fld.field_name for fld in a.field_type.layout.fields] == ["x", "y"]
+
+
+def test_trailing_attribute_macro_does_not_swallow_the_field_name() -> None:
+    # Regression: tree-sitter's C grammar doesn't know about the kernel's
+    # postfix attribute-like macros (____cacheline_aligned, __ro_after_init,
+    # ...) -- `TYPE name MACRO;` isn't valid C to it, so it recovers by
+    # wrapping the *real* name in an ERROR node and mistakenly treating the
+    # trailing macro token as the declarator. Confirmed against a real
+    # vmlinux: task_group's `atomic_long_t load_avg ____cacheline_aligned;`
+    # was parsed as a field literally named "____cacheline_aligned", losing
+    # "load_avg" entirely -- which then always reported as missing from the
+    # module (it was never looked up by its real name), producing a false
+    # "Impossible layout" conflict.
+    state = parse_and_dispatch(b"struct task_group { atomic_long_t load_avg ____cacheline_aligned; };")
+    assert [f.field_name for f in state.fields] == ["load_avg"]
+    assert state.fields[0].field_type.original_type == "atomic_long_t"
+
+
+def test_prefix_annotation_macro_does_not_override_a_real_declarator() -> None:
+    # Regression: a macro placed *before* a proper declarator (`__rcu` on an
+    # RCU-protected pointer, e.g. `struct css_set __rcu *cgroups;`) also
+    # produces a tree-sitter ERROR sibling for the unrecognized macro token
+    # -- but unlike the trailing-macro case above, the declarator tree-sitter
+    # finds here (`*cgroups`) is already correct and must not be replaced by
+    # the ERROR-recovered token. First attempt at fixing the trailing-macro
+    # case regressed this exact pattern (every real vmlinux __rcu-annotated
+    # field, e.g. task_struct's real_parent/cred/cgroups/sighand, lost its
+    # name and reported "struct X __rcu" with nothing after it).
+    state = parse_and_dispatch(b"struct task_struct { struct css_set __rcu *cgroups; };")
+    assert [f.field_name for f in state.fields] == ["cgroups"]
+    assert state.fields[0].field_type.original_type == "struct css_set *"
 
 
 def test_plain_multi_declarator_field() -> None:

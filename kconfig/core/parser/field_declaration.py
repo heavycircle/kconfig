@@ -83,7 +83,17 @@ def _resolve_named_struct(type_node: Node, state: KconfigParserState, dispatcher
         return None
 
     branch_visited = state.visited | {struct_name}
-    nested_state = KconfigParserState(configs=state.configs, visited=branch_visited, recursive=state.recursive)
+    # No `configs=state.configs` here, deliberately: unlike the anonymous case
+    # below, this struct has its own independent definition (found via
+    # find_struct_declaration, possibly in an entirely different file) -- its
+    # fields' guards must reflect only what's #ifdef'd *within that
+    # definition*, not whatever guards happened to be active at the
+    # referencing site. Confirmed via a real vmlinux: without this,
+    # `tty_port_operations` (an unconditional struct with zero #ifdefs of its
+    # own) had every field falsely guarded by CONFIG_SMP, inherited from a
+    # completely unrelated #ifdef CONFIG_SMP many levels up the reference
+    # chain that reached it.
+    nested_state = KconfigParserState(visited=branch_visited, recursive=state.recursive)
 
     dispatcher.dispatch(nested_node, nested_state)
     nested_struct.fields = nested_state.fields
@@ -114,6 +124,37 @@ def _resolve_layout(type_node: Node, state: KconfigParserState, dispatcher: Node
     nested_state = KconfigParserState(configs=state.configs, visited=state.visited, recursive=state.recursive)
     dispatcher.dispatch(body_node, nested_state)
     return KconfigStruct("", Path(), type_node.start_point[0] + 1, fields=nested_state.fields)
+
+
+def _find_error_recovered_declarator(node: Node, declarator_nodes: list[Node]) -> Node | None:
+    """Recover a field's real name when tree-sitter misparsed it into an ``ERROR`` child.
+
+    The kernel commonly appends a postfix attribute-like macro after a
+    field's real name (``atomic_long_t load_avg ____cacheline_aligned;``).
+    Tree-sitter's C grammar has no idea these macros exist -- to it, two
+    consecutive bare identifiers with no operator between them is a syntax
+    error. It recovers by wrapping the *real* name in an ``ERROR`` node and
+    mistakenly treating the trailing macro token as this field_declaration's
+    own ``declarator`` field instead.
+
+    This only applies when the ``declarator`` tree-sitter *did* find is
+    itself a bare, structureless identifier -- the signature of a stray
+    trailing token, not a real declarator. A macro placed *before* a proper
+    declarator (``struct css_set __rcu *cgroups;``) also produces an ERROR
+    sibling, but there the declarator tree-sitter found (``*cgroups``) is
+    already correct and must be left alone.
+    """
+    if len(declarator_nodes) != 1 or declarator_nodes[0].type != "field_identifier":
+        return None
+
+    for child in node.children:
+        if child.type != "ERROR":
+            continue
+        for grandchild in child.children:
+            if grandchild.type == "field_identifier":
+                return grandchild
+
+    return None
 
 
 def _parse_declarator(
@@ -158,6 +199,14 @@ def parse_field_declaration(node: Node, state: KconfigParserState, dispatcher: N
     layout = _resolve_layout(type_node, state, dispatcher) if state.recursive else None
 
     declarator_nodes = node.children_by_field_name("declarator")
+
+    error_declarator = _find_error_recovered_declarator(node, declarator_nodes)
+    if error_declarator is not None:
+        # The one declarator tree-sitter found here is the bogus trailing
+        # macro token, not a second field -- only the recovered name is real.
+        _parse_declarator(node, type_node, error_declarator, layout, state)
+        return
+
     if not declarator_nodes:
         _parse_declarator(node, type_node, None, layout, state)
         return

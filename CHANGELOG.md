@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-06
+
+### Fixed
+
+- Kernel field declarations using a postfix attribute-like macro tree-sitter
+  doesn't recognize (e.g. `atomic_long_t load_avg ____cacheline_aligned;`)
+  had their real field name silently replaced by the macro token, since
+  tree-sitter's C grammar recovers from the syntax error by wrapping the
+  real name in an `ERROR` node and mistakenly treating the trailing macro as
+  the declarator -- the field could then never match a real module field
+  again. Also handles the same macro appearing *before* a proper declarator
+  (e.g. `struct css_set __rcu *cgroups;`) without disturbing the correctly-
+  parsed real declarator in that case.
+
+## [1.2.1] - 2026-08-06
+
+### Fixed
+
+- A named nested struct's own fields incorrectly inherited the CONFIG guard
+  active at the site that *referenced* it, even though the struct is
+  independently defined (often in an unrelated file) and has no such guard
+  in its own body -- e.g. `tty_port_operations` (genuinely unconditional)
+  had every field falsely guarded by `CONFIG_SMP`, causing a false
+  "Impossible layout" conflict. `_resolve_named_struct` no longer carries
+  the referencing context's guard stack into the resolved struct's own
+  parse.
+
 ## [1.2.0] - 2026-08-06
 
 ### Added
@@ -96,7 +123,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created a base Python project for running tree-sitter queries on the Linux
   kernel source.
 
-[unreleased]: https://github.com/heavycircle/kconfig/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/heavycircle/kconfig/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/heavycircle/kconfig/compare/v1.2.1...v1.2.2
+[1.2.1]: https://github.com/heavycircle/kconfig/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/heavycircle/kconfig/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/heavycircle/kconfig/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/heavycircle/kconfig/compare/v1.1.2...v1.1.3
