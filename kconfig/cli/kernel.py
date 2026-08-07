@@ -44,6 +44,21 @@ DEBIAN_CODENAMES = [
     "etch",
 ]
 
+# Release numbers are accepted next to codenames for the same convenience Ubuntu
+# provides. New releases should be added here when their codename joins the search list.
+DEBIAN_RELEASE_BY_NUMBER = {
+    "4": "etch",
+    "5": "lenny",
+    "6": "squeeze",
+    "7": "wheezy",
+    "8": "jessie",
+    "9": "stretch",
+    "10": "buster",
+    "11": "bullseye",
+    "12": "bookworm",
+    "13": "trixie",
+}
+
 
 def _make_download_progress() -> Progress:
     return Progress(
@@ -158,6 +173,16 @@ def _resolve_ubuntu_codename(release: str) -> str:
 def _list_ubuntu_codenames() -> list[str]:
     """Every known Ubuntu codename, for searching across all of them at once."""
     return [dist for dist, _version in _fetch_ubuntu_releases()]
+
+
+def _resolve_debian_codename(release: str) -> str:
+    """Accept either a Debian codename (``bookworm``) or release number (``12``)."""
+    if not any(ch.isdigit() for ch in release):
+        return release
+    codename = DEBIAN_RELEASE_BY_NUMBER.get(release)
+    if codename is None:
+        raise KconfigSymbolNotFoundError(release, "Debian release number mapping")
+    return codename
 
 
 def _try_find_package(
@@ -289,7 +314,7 @@ def kernel_fetch_debian(
         ),
     ] = None,
     release: Annotated[
-        str, typer.Option("-r", "--release", help="Debian release codename, e.g. wheezy or bookworm.")
+        str, typer.Option("-r", "--release", help="Debian release codename or number, e.g. wheezy, 7, bookworm or 12.")
     ] = "bookworm",
     package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
 ) -> None:
@@ -299,14 +324,15 @@ def kernel_fetch_debian(
     (e.g. wheezy/Debian 7) have moved off the live mirror to
     archive.debian.org -- both are tried automatically.
     """
-    pockets = [release, f"{release}-updates", f"{release}-security"]
+    codename = _resolve_debian_codename(release)
+    pockets = [codename, f"{codename}-updates", f"{codename}-security"]
     _fetch_distro_source(DEBIAN_ARCHIVES, pockets, package, version)
 
 
 @app.command("list-debian")
 def kernel_list_debian(
     release: Annotated[
-        str, typer.Option("-r", "--release", help="Debian release codename, e.g. wheezy or bookworm.")
+        str, typer.Option("-r", "--release", help="Debian release codename or number, e.g. wheezy, 7, bookworm or 12.")
     ] = "bookworm",
     package: Annotated[str, typer.Option("-p", "--package", help="Source package name.")] = "linux",
 ) -> None:
@@ -316,7 +342,8 @@ def kernel_list_debian(
     ``3.2.0-4-amd64``) back to the exact source package version needed by
     ``fetch-debian``.
     """
-    pockets = [release, f"{release}-updates", f"{release}-security"]
+    codename = _resolve_debian_codename(release)
+    pockets = [codename, f"{codename}-updates", f"{codename}-security"]
     render_distro_package_table(_list_distro_packages(DEBIAN_ARCHIVES, pockets, package))
 
 
