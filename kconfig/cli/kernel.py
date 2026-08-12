@@ -140,39 +140,11 @@ def kernel_fetch(
         ui.out_info(f"Kernel {version} is already cached at {extract_dir}")
         return
 
-    tarball_path = CACHE_KERNEL_DIR / f"linux-{version}.tar.xz"
     try:
-        for url in urls:
-            # Get the file from the URL.
-            tarball_path = CACHE_KERNEL_DIR / url.rsplit("/", 1)[-1]
-            with requests.get(url, stream=True, timeout=(10, 60)) as r:
-                if r.status_code == 404 and url != urls[-1]:
-                    ui.out_info(f"Version {version} not found at {url}; trying initial-release name.")
-                    continue
-                r.raise_for_status()
-                total_size = int(r.headers.get("content-length", 0))
-
-                with tarball_path.open("wb") as f, _make_download_progress() as progress:
-                    task = progress.add_task(f"Downloading {tarball_path.name}...", total=total_size)
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                        progress.update(task, advance=len(chunk))
-
-            ui.out_info("Extracting tarball...")
-            with tarfile.open(tarball_path, "r:xz") as tar:
-                tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
-
-            tarball_path.unlink()
-            source_dir = CACHE_KERNEL_DIR / tarball_path.name.removesuffix(".tar.xz")
-            if source_dir.exists() and not extract_dir.exists():
-                source_dir.rename(extract_dir)
-            break
-
+        _download_kernel_tarball(urls, extract_dir)
         ui.out_success(f"Kernel {version} ready at {extract_dir}")
     except requests.exceptions.ReadTimeout as e:
         ui.out_error("Download timed out. The kernel.org mirror was too slow.")
-        if tarball_path.exists():
-            tarball_path.unlink()
         raise typer.Exit(1) from e
 
     except requests.exceptions.HTTPError as e:
@@ -182,6 +154,44 @@ def kernel_fetch(
         else:
             ui.out_error(f"Failed to download: {e}")
         raise typer.Exit(1) from e
+
+
+def _download_kernel_tarball(urls: list[str], extract_dir: Path) -> None:
+    """Try each tarball URL in turn, extracting the first one that downloads successfully.
+
+    kernel.org names a kernel's initial release without a trailing ``.0``
+    (``linux-X.Y.tar.xz``), so ``urls`` may list both forms -- a 404 on a
+    non-final URL falls through to the next one instead of failing outright.
+    """
+    for url in urls:
+        tarball_path = CACHE_KERNEL_DIR / url.rsplit("/", 1)[-1]
+        try:
+            with requests.get(url, stream=True, timeout=(10, 60)) as r:
+                if r.status_code == 404 and url != urls[-1]:
+                    ui.out_info(f"Version not found at {url}; trying initial-release name.")
+                    continue
+                r.raise_for_status()
+                total_size = int(r.headers.get("content-length", 0))
+
+                with tarball_path.open("wb") as f, _make_download_progress() as progress:
+                    task = progress.add_task(f"Downloading {tarball_path.name}...", total=total_size)
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        progress.update(task, advance=len(chunk))
+        except requests.exceptions.ReadTimeout:
+            if tarball_path.exists():
+                tarball_path.unlink()
+            raise
+
+        ui.out_info("Extracting tarball...")
+        with tarfile.open(tarball_path, "r:xz") as tar:
+            tar.extractall(path=CACHE_KERNEL_DIR)  # noqa: S202
+
+        tarball_path.unlink()
+        source_dir = CACHE_KERNEL_DIR / tarball_path.name.removesuffix(".tar.xz")
+        if source_dir.exists() and not extract_dir.exists():
+            source_dir.rename(extract_dir)
+        return
 
 
 def _resolve_distro_variant(
