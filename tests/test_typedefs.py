@@ -64,6 +64,49 @@ def test_get_typedef_configs_direct_match_needs_no_lookup(kernel_dir: Path) -> N
     assert guard == sympy.true
 
 
+def test_resolve_typedef_ignores_non_kernel_binary_dirs(kernel_dir: Path) -> None:
+    _write_elf_header(kernel_dir)
+
+    # A same-named macro in a host-side build tool, for its own unrelated
+    # purpose -- never compiled into the kernel or a module, so it must not
+    # contribute a term to Elf_Sym's guard.
+    scripts_dir = kernel_dir / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "sorttable.h").write_bytes(
+        b"#ifdef SORTTABLE_64\n#define Elf_Sym Elf64_Sym\n#else\n#define Elf_Sym Elf32_Sym\n#endif\n"
+    )
+
+    build_typedef_location_cache()
+
+    candidates = resolve_typedef("Elf_Sym")
+    by_type = {c.resolved_type: c.guard for c in candidates}
+    assert by_type == {
+        "Elf64_Sym": CONFIG_64BIT,
+        "Elf32_Sym": sympy.Not(CONFIG_64BIT),
+    }
+
+
+def test_resolve_typedef_ignores_other_architectures(kernel_dir: Path) -> None:
+    _write_elf_header(kernel_dir)
+
+    # A different architecture's own definition of the same typedef name --
+    # irrelevant to the target arch (x86, the test default) being analyzed.
+    mips_dir = kernel_dir / "arch" / "mips" / "include" / "asm"
+    mips_dir.mkdir(parents=True)
+    (mips_dir / "module.h").write_bytes(
+        b"#ifdef CONFIG_32BIT\n#define Elf_Sym Elf32_Sym\n#else\n#define Elf_Sym Elf64_Sym\n#endif\n"
+    )
+
+    build_typedef_location_cache()
+
+    candidates = resolve_typedef("Elf_Sym")
+    by_type = {c.resolved_type: c.guard for c in candidates}
+    assert by_type == {
+        "Elf64_Sym": CONFIG_64BIT,
+        "Elf32_Sym": sympy.Not(CONFIG_64BIT),
+    }
+
+
 def test_get_custom_members_distinguishes_tags_from_typedefs() -> None:
     source = b"static int f(struct foo *f, union bar *b, mytype_t x) { struct baz z; return 0; }"
     root = parse_source(source)

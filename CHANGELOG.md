@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-12
+
+### Added
+
+- `kconfig kernel fetch <version> --variant {debian,ubuntu}` -- fetches a
+  distro's patched build of an *upstream* kernel.org version (e.g. "the
+  Debian variant of 3.2.78") without needing to already know which distro
+  release/exact package version shipped it, unlike `fetch-debian`/
+  `fetch-ubuntu` (kept as-is, for when the exact package version is already
+  known). Backed by two new archive clients in `core/cache/distro_kernel.py`:
+  `find_snapshot_package`/`download_snapshot_package` (snapshot.debian.org,
+  which keeps every version of every Debian source package ever archived,
+  addressed by content hash) and `find_launchpad_package`/
+  `download_launchpad_package` (Launchpad's publishing history -- Ubuntu has
+  no byte-identical equivalent of snapshot.debian.org, but Launchpad keeps
+  every published version across every series/pocket and its per-file
+  download links are permanent librarian storage, serving the same purpose).
+  A shared `_upstream_matches` handles the version-matching gap between the
+  two distros: Debian tracks kernel.org's exact patch level as its upstream
+  version, but Ubuntu pins a whole point-release series to `X.Y.0` for its
+  entire lifetime regardless of patch level actually tracked -- a
+  kernel.org-style `X.Y.Z` request falls back to matching that pin.
+
+### Fixed
+
+- `download_launchpad_package` had no content-integrity verification at all
+  (unlike every other download path in this module) -- found via a real
+  fetch that silently produced a corrupted, wrong-sized file with no error
+  from anywhere in the request. Root cause: a Launchpad file that's already
+  gzip-compressed on disk (e.g. a `.diff.gz`) served with `Content-Encoding:
+  gzip` on top, which `requests`/urllib3 transparently (and silently)
+  decompresses -- and Launchpad's caching proxy kept serving that
+  gzip-transport-encoded response regardless of the request's own
+  `Accept-Encoding`, so it couldn't be avoided by asking the server not to
+  encode it. Fixed on the read side instead: `_stream_download` now reads via
+  `response.raw` with `decode_content = False` to get the exact wire bytes,
+  and `download_launchpad_package` verifies every downloaded file against
+  the SHA256 the `.dsc` itself declares (parsed from its PGP clearsign
+  wrapper) after every file is fetched.
+- Launchpad's own connection setup proved noticeably slower and less
+  reliable than the plain archive mirrors used elsewhere in this module
+  (confirmed for real: cold connects routinely exceeded 10s, and a
+  dozens-of-requests history scan hit transient 5xx/429/timeout responses
+  partway through more than once). `_launchpad_get` now retries transient
+  status codes *and* connection/read timeouts with exponential backoff, and
+  uses a longer connect timeout than the rest of the module.
+
+## [1.2.3] - 2026-08-11
+
+### Fixed
+
+- `resolve_typedef`/`get_typedef_configs` inferred a field's CONFIG guard
+  (e.g. inferring `CONFIG_64BIT` from `Elf_Sym` matching pahole's
+  `Elf64_Sym`) by ORing together the guard from *every* file in the tree
+  that defines a same-named typedef/macro, with no filtering at all. This
+  pulled in host-only build tooling (`scripts/mod/modpost.h`,
+  `scripts/sorttable.h`, `scripts/recordmcount.h`,
+  `tools/perf/util/genelf.h`, ...) that redefines common typedef names for
+  its own unrelated build-time purposes -- never compiled into the kernel or
+  a module, and not even real `CONFIG_*` symbols in several cases
+  (`SORTTABLE_64`, `RECORD_MCOUNT_64`) -- plus every other architecture's own
+  definition, not just the target one. The resulting "raw guard" shown in
+  `struct analyze`'s evidence table could end up several terms larger than
+  what's actually in the relevant kernel header. Fixed by excluding
+  `scripts/`, `tools/`, `Documentation/`, `usr/` from the typedef-location
+  cache, and filtering `arch/<other-arch>/` paths dynamically (against
+  `kconfig_state.arch`) at lookup time -- mirrors the existing
+  `_rank_file`/`wrong_arch` check used for struct location resolution.
+  Verified for real: `Elf_Sym`'s candidate files against the cached
+  `6.8.0-137.137` tree dropped from 8 (mixing in five irrelevant/host-only
+  files) to 2 real kernel headers.
+
 ## [1.2.2] - 2026-08-06
 
 ### Fixed
