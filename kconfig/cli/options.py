@@ -13,6 +13,13 @@ class OutputFormat(str, Enum):
     json = "json"
 
 
+class DistroVariant(str, Enum):
+    """Which distro's patched variant of an upstream kernel version to fetch."""
+
+    debian = "debian"
+    ubuntu = "ubuntu"
+
+
 ArchOpt = Annotated[
     str,
     Option(

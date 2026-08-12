@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tarfile
 import tempfile
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -11,16 +12,24 @@ from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, Te
 
 from kconfig.control_api import (
     CACHE_KERNEL_DIR,
+    download_launchpad_package,
+    download_snapshot_package,
     download_source_package,
     extract_source_package,
     find_latest_source_package,
+    find_launchpad_package,
+    find_snapshot_package,
     find_source_package,
     list_source_packages,
 )
 from kconfig.exceptions import KconfigFileInvalidError, KconfigSubprocessFailedError, KconfigSymbolNotFoundError
 from kconfig.styling_api import render_distro_package_table, render_distro_search_table, render_kernel_version_table, ui
 
+from .options import DistroVariant
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from kconfig.core.cache.distro_kernel import DistroSourcePackage
 
 app = typer.Typer()
@@ -72,9 +81,31 @@ def kernel_list() -> None:
 
 @app.command("fetch")
 def kernel_fetch(
-    version: Annotated[str, typer.Argument(help="Linux kernel version to fetch.")],
+    version: Annotated[str, typer.Argument(help="Linux kernel version to fetch, e.g. 3.2.78 or 6.8.0.")],
+    variant: Annotated[
+        DistroVariant | None,
+        typer.Option(
+            "--variant",
+            help="Fetch this distro's patched variant of the given upstream version, instead of vanilla source.",
+        ),
+    ] = None,
+    package: Annotated[
+        str, typer.Option("-p", "--package", help="Source package name. Only used with --variant.")
+    ] = "linux",
 ) -> None:
-    """Fetch a kernel from Linux."""
+    """Fetch a kernel from kernel.org, or (with --variant) a distro's patched build of it.
+
+    ``--variant`` searches that distro's full historical archive
+    (snapshot.debian.org for Debian, Launchpad for Ubuntu) for whichever
+    packaged version tracks the given upstream version -- e.g. ``fetch 3.2.78
+    --variant debian`` finds and fetches wheezy's ``3.2.78-1`` without needing
+    to already know it shipped there. For an exact, already-known distro
+    package version instead, use ``fetch-ubuntu``/``fetch-debian`` directly.
+    """
+    if variant is not None:
+        _fetch_distro_variant(variant, package, version)
+        return
+
     ui.out_info(f"Fetching Kernel: {version}")
 
     major = version.split(".", maxsplit=1)[0]
@@ -117,6 +148,75 @@ def kernel_fetch(
         else:
             ui.out_error(f"Failed to download: {e}")
         raise typer.Exit(1) from e
+
+
+def _resolve_distro_variant(
+    variant: DistroVariant, package: str, upstream_version: str
+) -> tuple[str, Callable[..., Path]]:
+    """Resolve a distro's patched variant of an upstream kernel version.
+
+    Returns:
+        tuple[str, Callable[..., Path]]: The full, resolved distro package
+            version, and a ``download(dest_dir, on_progress=...)`` callable
+            that fetches it.
+
+    """
+    if variant is DistroVariant.debian:
+        version = find_snapshot_package(package, upstream_version)
+        return version, partial(download_snapshot_package, package, version)
+
+    version, self_link = find_launchpad_package(package, upstream_version)
+    return version, partial(download_launchpad_package, self_link)
+
+
+def _fetch_distro_variant(variant: DistroVariant, package: str, upstream_version: str) -> None:
+    """Fetch a distro's patched variant of an upstream kernel version.
+
+    Unlike ``fetch-ubuntu``/``fetch-debian`` (which need an exact, already-known
+    distro package version, or search only a release's *current* pocket), this
+    searches the distro's full historical archive (snapshot.debian.org for
+    Debian, Launchpad's publishing history for Ubuntu) for whichever packaged
+    version tracks the given upstream kernel.org version -- so "the debian
+    variant of 3.2.78" resolves without needing to already know it shipped as
+    wheezy's ``3.2.78-1``.
+    """
+    ui.out_info(f"Looking up the {variant.value} variant of {package}={upstream_version} ...")
+    try:
+        version, download = _resolve_distro_variant(variant, package, upstream_version)
+    except KconfigSymbolNotFoundError as e:
+        ui.out_error(f"Could not find a {variant.value} variant of {package}={upstream_version}.")
+        raise typer.Exit(1) from e
+
+    extract_dir = CACHE_KERNEL_DIR / f"linux-{version}"
+    if extract_dir.exists():
+        ui.out_info(f"Kernel {version} is already cached at {extract_dir}")
+        return
+
+    ui.out_info(f"Resolved to {package}={version}")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        with _make_download_progress() as progress:
+            task = progress.add_task("Downloading...", total=None)
+
+            def on_progress(filename: str, downloaded: int, total: int) -> None:
+                progress.update(task, total=total, completed=downloaded, description=f"Downloading {filename}...")
+
+            try:
+                dsc_path = download(tmp_path, on_progress=on_progress)
+            except (requests.exceptions.RequestException, KconfigFileInvalidError) as e:
+                ui.out_error(f"Download failed: {e}")
+                raise typer.Exit(1) from e
+
+        ui.out_info("Unpacking and applying patches (dpkg-source) ...")
+        try:
+            extract_source_package(dsc_path, extract_dir)
+        except KconfigSubprocessFailedError as e:
+            ui.out_error(str(e))
+            raise typer.Exit(1) from e
+
+    ui.out_success(f"Kernel {package}={version} ready at {extract_dir} -- use -k {version}")
 
 
 def _fetch_ubuntu_releases() -> list[tuple[str, str]]:
