@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-08-11
+
+### Fixed
+
+- `resolve_typedef`/`get_typedef_configs` inferred a field's CONFIG guard
+  (e.g. inferring `CONFIG_64BIT` from `Elf_Sym` matching pahole's
+  `Elf64_Sym`) by ORing together the guard from *every* file in the tree
+  that defines a same-named typedef/macro, with no filtering at all. This
+  pulled in host-only build tooling (`scripts/mod/modpost.h`,
+  `scripts/sorttable.h`, `scripts/recordmcount.h`,
+  `tools/perf/util/genelf.h`, ...) that redefines common typedef names for
+  its own unrelated build-time purposes -- never compiled into the kernel or
+  a module, and not even real `CONFIG_*` symbols in several cases
+  (`SORTTABLE_64`, `RECORD_MCOUNT_64`) -- plus every other architecture's own
+  definition, not just the target one. The resulting "raw guard" shown in
+  `struct analyze`'s evidence table could end up several terms larger than
+  what's actually in the relevant kernel header. Fixed by excluding
+  `scripts/`, `tools/`, `Documentation/`, `usr/` from the typedef-location
+  cache, and filtering `arch/<other-arch>/` paths dynamically (against
+  `kconfig_state.arch`) at lookup time -- mirrors the existing
+  `_rank_file`/`wrong_arch` check used for struct location resolution.
+  Verified for real: `Elf_Sym`'s candidate files against the cached
+  `6.8.0-137.137` tree dropped from 8 (mixing in five irrelevant/host-only
+  files) to 2 real kernel headers.
+
 ## [1.2.2] - 2026-08-06
 
 ### Fixed
