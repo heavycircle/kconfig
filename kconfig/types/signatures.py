@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from sympy import Expr
+
 
 @dataclass
 class KconfigCustomMembers:
@@ -31,3 +33,18 @@ class KconfigSignature:
     file: Path
 
     members: KconfigCustomMembers = field(default_factory=KconfigCustomMembers)
+
+
+@dataclass
+class KconfigMemberGuard:
+    """A CONFIG guard found on a field, reached while walking one of a signature's custom members.
+
+    Unlike KconfigEvidence, this reflects only what's structurally written in
+    the kernel source (#ifdef nesting) -- no compiled-module comparison is
+    involved.
+    """
+
+    member: str
+    struct_name: str
+    field_name: str
+    guard: Expr

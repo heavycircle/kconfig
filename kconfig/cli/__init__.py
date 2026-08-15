@@ -7,13 +7,14 @@ import typer
 from kconfig.exceptions import KconfigError
 from kconfig.styling_api import ui
 
-from . import kernel, structs, symbols, typedefs
+from . import kernel, signatures, structs, symbols, typedefs
 
 app = typer.Typer(help="Kconfig is a CLI application for reverse-engineering kernel .config configurations.")
 app.add_typer(kernel.app, name="kernel", help="Manage local kernel versions.")
 app.add_typer(structs.app, name="struct", help="Manage and extract structures.")
 app.add_typer(symbols.app, name="symbol", help="Check and verify symbols.")
 app.add_typer(typedefs.app, name="type", help="Find type definitions and typedefs.")
+app.add_typer(signatures.app, name="signature", help="Analyze a function/macro signature's CONFIG dependencies.")
 
 
 @app.callback()

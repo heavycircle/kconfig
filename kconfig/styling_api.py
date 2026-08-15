@@ -7,6 +7,7 @@ from .ui.tables import (
     render_distro_search_table,
     render_field_type_table,
     render_kernel_version_table,
+    render_member_guards,
 )
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "render_distro_search_table",
     "render_field_type_table",
     "render_kernel_version_table",
+    "render_member_guards",
     "render_signature",
     "render_struct",
     "ui",

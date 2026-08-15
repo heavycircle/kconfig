@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import sympy
 
-from kconfig.core.analysis.structs import gather_struct_evidence
+from kconfig.core.analysis.structs import analyze_structs, gather_struct_evidence
 from kconfig.core.parser import ANONYMOUS_FIELD_PREFIX
 from kconfig.exceptions import KconfigSymbolNotFoundError
 from kconfig.types import KconfigFieldType, KconfigStruct, KconfigStructField
@@ -171,6 +171,27 @@ def test_shared_struct_evidence_is_included_once_not_per_reference(monkeypatch: 
     evidence = gather_struct_evidence(root)
     assert len(evidence) == 1
     assert evidence[0].struct_name == "shared"
+
+
+def test_analyze_structs_evaluates_a_struct_shared_across_roots_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Same idea as test_shared_struct_evidence_is_included_once_not_per_reference,
+    # but for analyze_structs's own roots dict -- e.g. a signature whose custom
+    # members happen to overlap. Two distinct KconfigStruct objects sharing a
+    # name are the same struct, whichever root reaches it first.
+    struct_x = KconfigStruct("shared", Path("shared.h"), 1)
+    struct_y = KconfigStruct("shared", Path("shared.h"), 1)
+
+    calls: list[str] = []
+
+    def fake_gather_struct_evidence(struct: KconfigStruct, **_kwargs: object) -> list[object]:
+        calls.append(struct.original_name)
+        return []
+
+    monkeypatch.setattr("kconfig.core.analysis.structs.gather_struct_evidence", fake_gather_struct_evidence)
+
+    analyze_structs({"member_x": struct_x, "member_y": struct_y}, output_format="json")
+
+    assert calls == ["shared"]
 
 
 def test_cycle_protection_stops_self_referencing_structs(monkeypatch: pytest.MonkeyPatch) -> None:

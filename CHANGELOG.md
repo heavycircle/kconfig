@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-15
+
+### Added
+
+- New `kconfig signature` command group for analyzing a function/macro
+  signature's CONFIG dependencies -- the workflow implied by a modversions
+  CRC mismatch ("invalid version for `<function>`"): the signature itself
+  didn't change, but a struct/union it references did, so the fix is to
+  analyze *that*, not the function.
+  - `signature find` -- identical to `symbol find` (finds the signature,
+    reports its custom struct/union/typedef members); kept as its own
+    top-level command since it's the natural first step of this workflow.
+  - `signature configs` -- resolves each of a signature's custom struct/union
+    members and reports every CONFIG guard found on their fields (recursively
+    with `-r`), tagged with which member it was reached from. New
+    `gather_struct_guards` (`core/analysis/structs.py`) -- unlike
+    `gather_struct_evidence`, this is purely structural (reads `#ifdef`
+    nesting straight off the parsed struct), so it works without a module
+    directory at all.
+  - `signature analyze` -- the module-comparison counterpart: resolves every
+    custom member and analyzes them together against compiled module
+    binaries, reusing the exact same evidence/constraint-solving pipeline as
+    `struct analyze`. `analyze_struct_tree` was generalized into
+    `analyze_structs(roots: dict[str, KconfigStruct], ...)`, which
+    `analyze_struct_tree` now calls as a single-root special case (zero
+    behavior change for `struct analyze`) -- a struct reached through more
+    than one of a signature's members (directly, or nested under another
+    member) is still only counted once.
+  - New `get_signature_structs` (`core/structs/kernel.py`) resolves a list of
+    member names into structs, skipping (with a warning) any that can't be
+    found rather than aborting the whole batch -- shared by `configs` and
+    `analyze`.
+  - Verified for real: built and compiled a throwaway out-of-tree kernel
+    module (`pahole`/`gcc`/`make` against this host's own kernel headers) with
+    a `struct net_device` field guarded by `#ifdef CONFIG_NET_POLL_CONTROLLER`
+    in the paired fake source tree, but omitted at compile time. `signature
+    configs` correctly reported the guard tagged by member; `signature
+    analyze` (both table and `--output json`) correctly inferred
+    `CONFIG_NET_POLL_CONTROLLER: false` from the real compiled module, exactly
+    matching real `pahole -C net_device` output. Also verified the
+    multiple-custom-member case (`inet_select_addr(struct net_device *,
+    struct sk_buff *, int)`) reports both members' guards independently.
+- 4 new tests (`tests/test_signatures.py`) plus one in `tests/test_analysis.py`
+  (cross-root evidence dedup in `analyze_structs`); 87 -> 97 tests passing (a
+  couple of pre-existing tests picked up incidental coverage from the shared
+  helpers). Ruff and mypy clean (same 32 pre-existing sympy findings, plus one
+  new instance of the same already-accepted `Expr`/`BooleanTrue` identity-check
+  pattern in the new `gather_struct_guards`, at parity with two existing
+  instances in the same file).
+
 ## [1.3.0] - 2026-08-12
 
 ### Added
