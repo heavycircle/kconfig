@@ -11,6 +11,8 @@ from kconfig.types import KconfigParserState
 from kconfig.ui import ui
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from tree_sitter import Node
 
     from kconfig.types import KconfigStruct
@@ -41,3 +43,34 @@ def get_kernel_struct(struct_name: str, recursive: bool) -> KconfigStruct:
     dispatch.dispatch(node, state)
     layout.fields = state.fields
     return layout
+
+
+def _try_get_kernel_struct(struct_name: str, recursive: bool) -> KconfigStruct | None:
+    """Resolve a struct, warning and returning ``None`` instead of raising if it can't be found."""
+    try:
+        return get_kernel_struct(struct_name, recursive=recursive)
+    except KconfigSymbolNotFoundError as e:
+        ui.out_warning(f"{e}, skipping ...")
+        return None
+
+
+def get_signature_structs(members: Iterable[str], recursive: bool) -> dict[str, KconfigStruct]:
+    """Resolve a signature's custom struct/union members, keyed by member name.
+
+    Any member that can't be found in the kernel source is skipped with a
+    warning rather than aborting the whole batch -- a signature can reference
+    several members, and one unresolvable one shouldn't block analysis of
+    the rest.
+
+    Args:
+        members (Iterable[str]): Struct/union tag names to resolve (e.g. a
+            signature's ``members.structs | members.unions``).
+        recursive (bool): Whether to also resolve each member's own nested
+            struct fields.
+
+    Returns:
+        dict[str, KconfigStruct]: Resolved structs, keyed by member name.
+
+    """
+    resolved = ((member, _try_get_kernel_struct(member, recursive)) for member in members)
+    return {member: struct for member, struct in resolved if struct is not None}

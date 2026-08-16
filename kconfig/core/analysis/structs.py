@@ -7,7 +7,7 @@ from rich.table import Table
 
 from kconfig.core import parser, structs
 from kconfig.exceptions import KconfigSymbolNotFoundError
-from kconfig.types import KconfigEvidence
+from kconfig.types import KconfigEvidence, KconfigMemberGuard
 from kconfig.ui import render_config_diff_table, ui
 
 from .guards import parse_config_guard
@@ -198,6 +198,50 @@ def gather_struct_evidence(
     return evidence_list
 
 
+def gather_struct_guards(
+    member: str, struct: KconfigStruct, visited: set[str | int] | None = None
+) -> list[KconfigMemberGuard]:
+    """Collect every non-trivial CONFIG guard written on a struct's fields.
+
+    Unlike gather_struct_evidence, this only reflects what's structurally
+    written in the kernel source (#ifdef nesting) -- no module comparison is
+    involved, so it works without a module directory at all.
+
+    Args:
+        member (str): The signature's top-level custom member this struct was
+            reached from. Recorded on every guard found, however deep the
+            recursion goes, so results from several members can be told
+            apart once combined.
+        struct (KconfigStruct): The struct to walk. Only fields with a
+            resolved nested layout are recursed into -- i.e. this respects
+            whatever ``recursive`` value the struct was originally built
+            with.
+        visited (set[str | int] | None): Keys on the current ancestor path,
+            to detect a struct nested inside itself.
+
+    Returns:
+        list[KconfigMemberGuard]: One entry per guarded field found.
+
+    """
+    if visited is None:
+        visited = set()
+
+    key = _struct_key(struct)
+    if key in visited:
+        return []
+    branch_visited = visited | {key}
+
+    guards: list[KconfigMemberGuard] = []
+    for field in struct.fields:
+        if field.guard is not sympy.true:
+            struct_name = struct.original_name or "(anonymous)"
+            guards.append(KconfigMemberGuard(member, struct_name, field.field_name, field.guard))
+        if field.field_type.layout is not None:
+            guards.extend(gather_struct_guards(member, field.field_type.layout, branch_visited))
+
+    return guards
+
+
 def _config_dict(model: dict[sympy.Basic, bool]) -> dict[str, bool]:
     """Reduce a sympy satisfiability model to its ``CONFIG_*`` entries, string-keyed for JSON."""
     return {str(sym): val for sym, val in model.items() if str(sym).startswith("CONFIG_")}
@@ -248,15 +292,33 @@ def _render_constraint_table(root_name: str, rows: list[ConstraintRow]) -> Table
     return table
 
 
-def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, output_format: str = "table") -> None:
-    """Analyze a tree of structs and report the enabled configs.
+def _gather_forest_evidence(roots: dict[str, KconfigStruct]) -> list[KconfigEvidence]:
+    """Gather evidence from every root struct, counting a struct shared between roots only once."""
+    included: set[str | int] = set()
+    evidence: list[KconfigEvidence] = []
+    for struct in roots.values():
+        key = _struct_key(struct)
+        if key in included:
+            continue
+        included.add(key)
+        evidence.extend(gather_struct_evidence(struct, included=included))
+    return evidence
+
+
+def analyze_structs(roots: dict[str, KconfigStruct], current: str | None = None, output_format: str = "table") -> None:
+    """Analyze one or more struct trees together and report the enabled configs.
 
     This method aims to complete. On error, it will print the error and keep
     running. These errors either mean an error in the parsing of the kernel
     or modules.
 
     Args:
-        root_struct (KconfigStruct): The struct to recursively parse.
+        roots (dict[str, KconfigStruct]): Struct trees to recursively parse,
+            keyed by a label for display (e.g. a struct's own name, or --
+            when several structs are analyzed together, such as a function
+            signature's custom members -- the member each root was reached
+            from). Evidence from a struct reached through more than one root
+            (directly, or nested under another root) is only counted once.
         current (str | None): Path to a .config file for rendering a diff.
         output_format (str): Either ``"table"`` (a human-readable Rich table,
             the default) or ``"json"`` (a single JSON document on stdout, for
@@ -264,13 +326,14 @@ def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, 
 
     """
     as_json = output_format == "json"
+    title = ", ".join(roots)
 
-    evidence = gather_struct_evidence(root_struct)
+    evidence = _gather_forest_evidence(roots)
     if not evidence:
         if as_json:
             ui.raw.print_json(data={"conflict": False, "config": {}})
         else:
-            ui.out_info(f"No CONFIG guards found in '{root_struct.original_name}'")
+            ui.out_info(f"No CONFIG guards found in '{title}'")
         return
 
     constraints: dict[sympy.Expr, list[KconfigEvidence]] = {}
@@ -282,7 +345,7 @@ def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, 
 
     if not as_json:
         ui.out_info("Rendering table ...")
-        ui.raw.print(_render_constraint_table(root_struct.original_name, rows))
+        ui.raw.print(_render_constraint_table(title, rows))
 
     if global_conflict:
         if as_json:
@@ -306,3 +369,18 @@ def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, 
 
         ui.out_info("Rendering diff ...")
         render_config_diff_table(current_config, models[0])
+
+
+def analyze_struct_tree(root_struct: KconfigStruct, current: str | None = None, output_format: str = "table") -> None:
+    """Analyze a single struct tree and report the enabled configs.
+
+    A thin wrapper around ``analyze_structs`` for the common single-struct
+    case (e.g. ``kconfig struct analyze``). See its docstring for details.
+
+    Args:
+        root_struct (KconfigStruct): The struct to recursively parse.
+        current (str | None): Path to a .config file for rendering a diff.
+        output_format (str): Either ``"table"`` or ``"json"``.
+
+    """
+    analyze_structs({root_struct.original_name: root_struct}, current=current, output_format=output_format)

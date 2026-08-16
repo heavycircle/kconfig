@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from kconfig.core.cache.distro_kernel import DistroSourcePackage
-    from kconfig.types import KconfigFieldType
+    from kconfig.types import KconfigFieldType, KconfigMemberGuard
 
 
 def render_distro_package_table(packages: list[DistroSourcePackage]) -> None:
@@ -102,6 +102,31 @@ def render_field_type_table(field: KconfigFieldType) -> None:
     for f in sorted(field.resolved_types, key=lambda i: (i.resolved_type, i.file)):
         guard_str = "" if f.guard is sympy.true else str(f.guard)
         table.add_row(field.original_type, f.resolved_type, str(f.file), guard_str)
+
+    ui.raw.print(table)
+
+
+def render_member_guards(symbol: str, guards: list[KconfigMemberGuard]) -> None:
+    """Render the CONFIG guards found inside a signature's custom members as a Rich table.
+
+    Args:
+        symbol (str): Name of the function/macro the members were reached
+            from, used only for the message when no guards are found.
+        guards (list[KconfigMemberGuard]): Guards found, e.g. from ``gather_struct_guards``.
+
+    """
+    if not guards:
+        ui.out_info(f"No CONFIG guards found in '{symbol}''s custom members.")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table.add_column("Member", style="bold white")
+    table.add_column("Struct", style="cyan")
+    table.add_column("Field", style="white")
+    table.add_column("CONFIG Guard", style="yellow")
+
+    for g in sorted(guards, key=lambda i: (i.member, i.struct_name, i.field_name)):
+        table.add_row(g.member, g.struct_name, g.field_name, str(g.guard))
 
     ui.raw.print(table)
 

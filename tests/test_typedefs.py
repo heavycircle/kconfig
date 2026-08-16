@@ -113,6 +113,20 @@ def test_get_custom_members_distinguishes_tags_from_typedefs() -> None:
     func_def = find_node(root, "function_definition")
 
     members = get_custom_members(func_def)
-    assert members.structs == {"foo", "baz"}
+    assert members.structs == {"foo"}
     assert members.unions == {"bar"}
     assert members.typedefs == {"mytype_t"}
+
+
+def test_get_custom_members_excludes_types_only_used_in_the_function_body() -> None:
+    # Regression: a function's body is its implementation, not its exported
+    # interface -- genksyms/modversions computes a symbol's CRC from its
+    # declared return type and parameter list only, never from a type that
+    # merely appears in a local variable inside the body. 'baz' must not be
+    # reported even though it's referenced inside 'f'.
+    source = b"struct foo *f(struct foo *in) { struct baz z; struct bar *b = 0; return in; }"
+    root = parse_source(source)
+    func_def = find_node(root, "function_definition")
+
+    members = get_custom_members(func_def)
+    assert members.structs == {"foo"}
