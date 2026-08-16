@@ -25,8 +25,17 @@ def _collect_custom_members(node: Node, members: KconfigCustomMembers) -> None:
     if node.type == "type_identifier" and node.text:
         members.typedefs.add(node.text.decode())
 
+    # A function's body is its implementation, not its exported interface --
+    # genksyms/modversions computes a symbol's CRC from its declared return
+    # type and parameter list only (recursively expanding types reachable
+    # from *those*), never from types that merely appear in local variables,
+    # casts, or macro expansions inside the function body. Skipping it here
+    # keeps a signature's reported members limited to what could actually
+    # explain a modversions CRC mismatch.
+    skip = node.child_by_field_name("body") if node.type == "function_definition" else None
     for child in node.children:
-        _collect_custom_members(child, members)
+        if child != skip:
+            _collect_custom_members(child, members)
 
 
 def get_custom_members(node: Node) -> KconfigCustomMembers:
@@ -37,6 +46,11 @@ def get_custom_members(node: Node) -> KconfigCustomMembers:
     tag/typedef isn't enough to tell them apart. This walks the tree
     structurally instead: a ``type_identifier`` only counts as a typedef
     reference when it isn't the ``name`` field of a struct/union specifier.
+
+    If ``node`` is a ``function_definition``, its body is excluded -- only
+    the return type and parameter list (its exported interface) are scanned.
+    A macro's definition has no such split (the whole thing is scanned) since
+    a macro has no separate declared interface.
 
     Args:
         node (Node): The tree-sitter node to scan (e.g. a function or macro definition).
