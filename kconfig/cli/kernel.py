@@ -80,14 +80,27 @@ def _make_download_progress() -> Progress:
     )
 
 
-def kernel_tarball_urls(version: str) -> list[str]:
-    """Return kernel.org tarball URLs for ``version``, newest-compatible form first."""
+def kernel_tarball_urls(version: str, *, allow_http: bool = False) -> list[str]:
+    """Return kernel.org tarball URLs for ``version``, newest-compatible form first.
+
+    Each version form's HTTPS URL is followed immediately by its HTTP
+    equivalent when ``allow_http`` is set -- HTTPS is always tried first,
+    HTTP is only a fallback for environments (e.g. sandbox mirrors) that
+    don't serve HTTPS at all.
+    """
     major = version.split(".", maxsplit=1)[0]
-    urls = [f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version}.tar.xz"]
     # kernel.org names an initial release `linux-X.Y.tar.xz`; only patch releases
     # get a third component. Try the exact form first, then the initial-release form.
+    version_forms = [version]
     if version.endswith(".0"):
-        urls.append(f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version[:-2]}.tar.xz")
+        version_forms.append(version[:-2])
+
+    urls = []
+    for v in version_forms:
+        https_url = f"https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{v}.tar.xz"
+        urls.append(https_url)
+        if allow_http:
+            urls.append(https_url.replace("https://", "http://", 1))
     return urls
 
 
@@ -118,6 +131,16 @@ def kernel_fetch(
     package: Annotated[
         str, typer.Option("-p", "--package", help="Source package name. Only used with --variant.")
     ] = "linux",
+    allow_http: Annotated[
+        bool,
+        typer.Option(
+            "--allow-http",
+            help=(
+                "Fall back to plain HTTP if HTTPS can't connect, e.g. sandbox "
+                "mirrors that don't serve HTTPS at all. Off by default."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Fetch a kernel from kernel.org, or (with --variant) a distro's patched build of it.
 
@@ -134,7 +157,7 @@ def kernel_fetch(
 
     ui.out_info(f"Fetching Kernel: {version}")
 
-    urls = kernel_tarball_urls(version)
+    urls = kernel_tarball_urls(version, allow_http=allow_http)
     extract_dir = CACHE_KERNEL_DIR / f"linux-{version}"
     if extract_dir.exists():
         ui.out_info(f"Kernel {version} is already cached at {extract_dir}")
@@ -145,6 +168,11 @@ def kernel_fetch(
         ui.out_success(f"Kernel {version} ready at {extract_dir}")
     except requests.exceptions.ReadTimeout as e:
         ui.out_error("Download timed out. The kernel.org mirror was too slow.")
+        raise typer.Exit(1) from e
+
+    except requests.exceptions.ConnectionError as e:
+        hint = "" if allow_http else " Retry with --allow-http to fall back to plain HTTP."
+        ui.out_error(f"Could not connect to download the kernel.{hint}")
         raise typer.Exit(1) from e
 
     except requests.exceptions.HTTPError as e:
@@ -159,16 +187,19 @@ def kernel_fetch(
 def _download_kernel_tarball(urls: list[str], extract_dir: Path) -> None:
     """Try each tarball URL in turn, extracting the first one that downloads successfully.
 
-    kernel.org names a kernel's initial release without a trailing ``.0``
-    (``linux-X.Y.tar.xz``), so ``urls`` may list both forms -- a 404 on a
-    non-final URL falls through to the next one instead of failing outright.
+    ``urls`` may list more than one candidate for the same release: kernel.org
+    names a kernel's initial release without a trailing ``.0``
+    (``linux-X.Y.tar.xz``), and (with ``--allow-http``) each form also has an
+    HTTP fallback after its HTTPS URL. A 404, or a failure to connect at all
+    (e.g. HTTPS unsupported by a sandbox mirror), falls through to the next
+    URL instead of failing outright, as long as one remains.
     """
     for url in urls:
         tarball_path = CACHE_KERNEL_DIR / url.rsplit("/", 1)[-1]
         try:
             with requests.get(url, stream=True, timeout=(10, 60)) as r:
                 if r.status_code == 404 and url != urls[-1]:
-                    ui.out_info(f"Version not found at {url}; trying initial-release name.")
+                    ui.out_info(f"Version not found at {url}; trying next URL.")
                     continue
                 r.raise_for_status()
                 total_size = int(r.headers.get("content-length", 0))
@@ -181,6 +212,13 @@ def _download_kernel_tarball(urls: list[str], extract_dir: Path) -> None:
         except requests.exceptions.ReadTimeout:
             if tarball_path.exists():
                 tarball_path.unlink()
+            raise
+        except requests.exceptions.ConnectionError:
+            if tarball_path.exists():
+                tarball_path.unlink()
+            if url != urls[-1]:
+                ui.out_info(f"Could not connect to {url}; trying next URL.")
+                continue
             raise
 
         ui.out_info("Extracting tarball...")

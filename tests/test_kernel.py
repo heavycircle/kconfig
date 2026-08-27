@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 import requests
+import typer
 
 from kconfig.cli import kernel
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-
-    import pytest
 
 
 def test_initial_release_has_fallback_url() -> None:
@@ -26,6 +26,21 @@ def test_patch_release_has_single_url() -> None:
     assert urls == [
         "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.11.tar.xz",
     ]
+
+
+def test_allow_http_adds_an_http_fallback_after_each_https_url() -> None:
+    urls = kernel.kernel_tarball_urls("6.8.0", allow_http=True)
+    assert urls == [
+        "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.0.tar.xz",
+        "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.0.tar.xz",
+        "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.tar.xz",
+        "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.8.tar.xz",
+    ]
+
+
+def test_allow_http_off_by_default() -> None:
+    urls = kernel.kernel_tarball_urls("6.8.11")
+    assert all(url.startswith("https://") for url in urls)
 
 
 class FakeResponse:
@@ -111,3 +126,51 @@ def test_fetch_falls_back_to_initial_release(tmp_path: Path, monkeypatch: pytest
     assert calls == kernel.kernel_tarball_urls("6.8.0")
     assert (cache / "linux-6.8.0").is_dir()
     assert not (cache / "linux-6.8").exists()
+
+
+def test_fetch_falls_back_to_http_when_https_cannot_connect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    calls: list[str] = []
+
+    def fake_get(url: str, **_kwargs: object) -> FakeResponse:
+        calls.append(url)
+        if url.startswith("https://"):
+            raise requests.exceptions.ConnectionError("no HTTPS in this sandbox")
+        return FakeResponse(200, b"archive")
+
+    monkeypatch.setattr(kernel, "CACHE_KERNEL_DIR", cache)
+    monkeypatch.setattr(kernel.ui, "out_info", _noop)
+    monkeypatch.setattr(kernel.ui, "out_success", _noop)
+    monkeypatch.setattr(kernel.ui, "out_error", _noop)
+    monkeypatch.setattr(kernel.requests, "get", fake_get)
+    monkeypatch.setattr(kernel, "_make_download_progress", FakeProgress)
+    monkeypatch.setattr(kernel.tarfile, "open", _fake_open)
+
+    kernel.kernel_fetch("6.8.11", allow_http=True)
+
+    assert calls == kernel.kernel_tarball_urls("6.8.11", allow_http=True)
+    assert (cache / "linux-6.8.11").is_dir()
+
+
+def test_fetch_reports_a_friendly_error_when_https_fails_without_http_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    errors: list[str] = []
+
+    def fake_get(url: str, **_kwargs: object) -> FakeResponse:  # noqa: ARG001
+        raise requests.exceptions.ConnectionError("no HTTPS in this sandbox")
+
+    monkeypatch.setattr(kernel, "CACHE_KERNEL_DIR", cache)
+    monkeypatch.setattr(kernel.ui, "out_info", _noop)
+    monkeypatch.setattr(kernel.ui, "out_success", _noop)
+    monkeypatch.setattr(kernel.ui, "out_error", errors.append)
+    monkeypatch.setattr(kernel.requests, "get", fake_get)
+
+    with pytest.raises(typer.Exit):
+        kernel.kernel_fetch("6.8.11")
+
+    assert errors
+    assert "--allow-http" in errors[0]

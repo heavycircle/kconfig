@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-27
+
+### Added
+
+- `kconfig kernel fetch` gained `--allow-http`: falls back to plain HTTP for
+  the kernel.org tarball if HTTPS fails to connect (e.g. sandbox mirrors that
+  only serve HTTP). Off by default -- HTTPS is always tried first, and a
+  failed HTTPS connection without the flag now reports a friendly error
+  suggesting it instead of a raw `ConnectionError`.
+
 ## [1.4.0] - 2026-08-15
 
 ### Added
