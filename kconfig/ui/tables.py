@@ -146,7 +146,17 @@ def render_module_capabilities_table(capabilities: list[KconfigModuleCapabilitie
         ui.out_info("No .ko or vmlinux files found.")
         return
 
-    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        border_style="cyan",
+        caption=(
+            "Tiers, best to worst: full (BTF/DWARF layout) > split-btf (needs --btf_base) "
+            "> vermagic-only (no layout, vermagic readable) > none (nothing usable). "
+            "Only full/split-btf feed struct-layout evidence into analysis today."
+        ),
+        caption_style="dim",
+    )
     table.add_column("File", style="bold white")
     table.add_column("Tier", style="yellow")
     table.add_column("DWARF", style="cyan")

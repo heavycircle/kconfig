@@ -18,6 +18,14 @@ def module_info(modules: ModuleOpt) -> None:
     which modules get full struct-layout comparison and which fall back to a
     degraded tier (or nothing at all) -- the same probe those commands
     already run internally when building their module cache.
+
+    Tiers, best to worst: "full" (real struct layout, via BTF or DWARF),
+    "split-btf" (struct layout recovered via --btf_base against a vmlinux
+    found in the same directory), "vermagic-only" (no struct layout, but the
+    vermagic/.modinfo string is readable), "none" (no usable signal at all).
+    Only "full"/"split-btf" currently feed struct-layout evidence into
+    analysis -- "vermagic-only" facts aren't used yet, and a module at that
+    tier is simply skipped with a warning.
     """
     kconfig_state.module_dir = modules
     render_module_capabilities_table(probe_all_modules(kconfig_state.module_dir))

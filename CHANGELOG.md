@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-08-28
+
+### Fixed
+
+- `kconfig module info`'s four tiers (`full`/`split-btf`/`vermagic-only`/
+  `none`) were nowhere documented for a user -- not in `--help`, not in the
+  table output itself, only in a source-level docstring. Now explained in
+  both: the command's `--help` text, and a caption under the rendered table.
+
+## [1.6.0] - 2026-08-28
+
+### Added
+
+- New `kconfig module info -m <modules>` command reporting each compiled
+  module/vmlinux file's BTF/DWARF/vermagic introspection capabilities
+  (`full`, `split-btf`, `vermagic-only`, or `none`) -- the first piece of
+  supporting modules that lack BTF/DWARF debug info entirely.
+- `pahole` invocation now retries with `--btf_base <vmlinux>` when a bare
+  attempt fails, recovering modules built with `CONFIG_DEBUG_INFO_BTF_MODULES`
+  (distilled BTF deltas against the vmlinux they shipped with) that previously
+  looked indistinguishable from having no BTF at all.
+- The `.modinfo` ELF section (vermagic, license, retpoline, ...) is now
+  parsed directly via `readelf -p .modinfo`, with no dependency on the
+  `modinfo` kmod tool.
+
+### Fixed
+
+- `cache_module_structs` no longer aborts the entire module cache build the
+  first time one `.ko`/`vmlinux` file has no usable struct layout -- it's
+  skipped with a warning and every other file still gets cached. Previously
+  a single BTF/DWARF-less module in a directory would silently take down
+  `struct analyze`/`signature analyze` for every other module alongside it.
+
 ## [1.5.0] - 2026-08-27
 
 ### Added
