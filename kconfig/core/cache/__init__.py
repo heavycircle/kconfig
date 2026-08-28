@@ -11,7 +11,7 @@ from .distro_kernel import (
     find_source_package,
     list_source_packages,
 )
-from .modules import build_module_location_cache, get_module_location
+from .modules import build_module_location_cache, get_module_location, probe_all_modules
 from .structs import build_struct_location_cache, get_struct_location
 from .typedefs import build_typedef_location_cache, get_typedef_locations
 
@@ -31,4 +31,5 @@ __all__ = [
     "get_struct_location",
     "get_typedef_locations",
     "list_source_packages",
+    "probe_all_modules",
 ]

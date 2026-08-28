@@ -8,6 +8,7 @@ from .ui.tables import (
     render_field_type_table,
     render_kernel_version_table,
     render_member_guards,
+    render_module_capabilities_table,
 )
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "render_field_type_table",
     "render_kernel_version_table",
     "render_member_guards",
+    "render_module_capabilities_table",
     "render_signature",
     "render_struct",
     "ui",

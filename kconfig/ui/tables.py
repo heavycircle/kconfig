@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from kconfig.core.cache.distro_kernel import DistroSourcePackage
-    from kconfig.types import KconfigFieldType, KconfigMemberGuard
+    from kconfig.types import KconfigFieldType, KconfigMemberGuard, KconfigModuleCapabilities
 
 
 def render_distro_package_table(packages: list[DistroSourcePackage]) -> None:
@@ -127,6 +127,42 @@ def render_member_guards(symbol: str, guards: list[KconfigMemberGuard]) -> None:
 
     for g in sorted(guards, key=lambda i: (i.member, i.struct_name, i.field_name)):
         table.add_row(g.member, g.struct_name, g.field_name, str(g.guard))
+
+    ui.raw.print(table)
+
+
+def render_module_capabilities_table(capabilities: list[KconfigModuleCapabilities]) -> None:
+    """Render each module/vmlinux file's introspection capabilities as a Rich table.
+
+    Args:
+        capabilities (list[KconfigModuleCapabilities]): Per-file results, e.g.
+            from ``probe_all_modules`` -- surfaces which files will get full
+            struct-layout comparison in ``struct analyze``/``signature
+            analyze`` versus a degraded (or unusable) fallback tier, before
+            either command is actually run.
+
+    """
+    if not capabilities:
+        ui.out_info("No .ko or vmlinux files found.")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="cyan")
+    table.add_column("File", style="bold white")
+    table.add_column("Tier", style="yellow")
+    table.add_column("DWARF", style="cyan")
+    table.add_column("BTF", style="cyan")
+    table.add_column("Symtab", style="cyan")
+    table.add_column("Vermagic", style="dim")
+
+    for c in sorted(capabilities, key=lambda i: i.file.name):
+        table.add_row(
+            c.file.name,
+            c.tier,
+            "yes" if c.has_dwarf else "no",
+            "yes" if c.has_btf else "no",
+            "stripped" if c.symtab_stripped else "yes",
+            c.vermagic or "-",
+        )
 
     ui.raw.print(table)
 

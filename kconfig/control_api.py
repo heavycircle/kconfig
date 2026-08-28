@@ -16,6 +16,7 @@ from .core.cache import (
     get_module_location,
     get_struct_location,
     list_source_packages,
+    probe_all_modules,
 )
 from .core.config import CACHE_KERNEL_DIR, kconfig_state
 from .core.parser import resolve_typedef
@@ -45,5 +46,6 @@ __all__ = [
     "get_struct_location",
     "kconfig_state",
     "list_source_packages",
+    "probe_all_modules",
     "resolve_typedef",
 ]
